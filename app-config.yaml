@@ -1,0 +1,99 @@
+app:
+  title: duynhlab Developer Platform
+  baseUrl: http://localhost:3000
+
+organization:
+  name: duynhlab
+
+backend:
+  baseUrl: http://localhost:7007
+  listen:
+    port: 7007
+  csp:
+    connect-src: ["'self'", 'http:', 'https:']
+  cors:
+    origin: http://localhost:3000
+    methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
+    credentials: true
+  database:
+    client: better-sqlite3
+    connection: ':memory:'
+
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
+
+techdocs:
+  builder: 'local'
+  generator:
+    runIn: 'docker'
+  publisher:
+    type: 'local'
+
+auth:
+  providers:
+    guest: {}
+
+scaffolder: {}
+
+catalog:
+  import:
+    entityFilename: catalog-info.yaml
+    pullRequestBranchName: backstage-integration
+  rules:
+    - allow: [Component, System, API, Resource, Location, Template, Group, User]
+  locations:
+    # -- Catalog entities (single repo, organized by kind) --
+    - type: file
+      target: ../../catalog/systems/ecommerce.yaml
+    - type: file
+      target: ../../catalog/components/auth.yaml
+    - type: file
+      target: ../../catalog/components/user.yaml
+    - type: file
+      target: ../../catalog/components/product.yaml
+    - type: file
+      target: ../../catalog/components/cart.yaml
+    - type: file
+      target: ../../catalog/components/order.yaml
+    - type: file
+      target: ../../catalog/components/review.yaml
+    - type: file
+      target: ../../catalog/components/notification.yaml
+    - type: file
+      target: ../../catalog/components/shipping.yaml
+    - type: file
+      target: ../../catalog/components/frontend.yaml
+    # -- Organization --
+    - type: file
+      target: ../../catalog/org/platform-team.yaml
+      rules:
+        - allow: [User, Group]
+    # -- Deploy Service Template --
+    - type: file
+      target: ../../templates/deploy-service/template.yaml
+      rules:
+        - allow: [Template]
+    # -- Backstage default examples --
+    - type: file
+      target: ../../examples/entities.yaml
+    - type: file
+      target: ../../examples/org.yaml
+      rules:
+        - allow: [User, Group]
+
+kubernetes:
+  serviceLocatorMethod:
+    type: multiTenant
+  clusterLocatorMethods:
+    - type: config
+      clusters:
+        - url: https://kubernetes.default.svc
+          name: local
+          authProvider: serviceAccount
+          skipTLSVerify: true
+          skipMetricsLookup: true
+
+permission:
+  enabled: true

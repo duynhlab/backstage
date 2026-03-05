@@ -1,0 +1,106 @@
+# Grant Backstage read access to Flux CRDs (HelmReleases, Kustomizations, Sources, etc.)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-flux-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-view-flux-system
+subjects:
+  - kind: ServiceAccount
+    name: backstage
+    namespace: backstage
+---
+# Grant Backstage read access to core K8s resources needed by Flux Runtime page
+# and the Kubernetes plugin (pods, deployments, services, namespaces, events, etc.)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-k8s-read
+rules:
+  - apiGroups: [""]
+    resources:
+      - namespaces
+      - pods
+      - services
+      - configmaps
+      - events
+      - limitranges
+      - resourcequotas
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources:
+      - ingresses
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling]
+    resources:
+      - horizontalpodautoscalers
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-k8s-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage-k8s-read
+subjects:
+  - kind: ServiceAccount
+    name: backstage
+    namespace: backstage
+---
+# Grant Backstage patch access for sync/suspend/resume operations
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-flux-patch
+rules:
+  - apiGroups:
+      - source.toolkit.fluxcd.io
+    resources:
+      - buckets
+      - helmcharts
+      - gitrepositories
+      - helmrepositories
+      - ocirepositories
+    verbs:
+      - patch
+  - apiGroups:
+      - kustomize.toolkit.fluxcd.io
+    resources:
+      - kustomizations
+    verbs:
+      - patch
+  - apiGroups:
+      - helm.toolkit.fluxcd.io
+    resources:
+      - helmreleases
+    verbs:
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-flux-patch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage-flux-patch
+subjects:
+  - kind: ServiceAccount
+    name: backstage
+    namespace: backstage

@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: product
+  description: Product catalog and inventory microservice
+  annotations:
+    backstage.io/kubernetes-id: product
+    backstage.io/kubernetes-namespace: product
+    github.com/project-slug: duynhlab/product-service
+  tags: [go, microservice]
+  links:
+    - url: https://github.com/duynhlab/product-service
+      title: GitHub Repository
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: duynhlab-ecommerce

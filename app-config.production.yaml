@@ -1,0 +1,78 @@
+app:
+  baseUrl: ${APP_BASE_URL}
+
+backend:
+  baseUrl: ${BACKEND_BASE_URL}
+  listen:
+    port: 7007
+  database:
+    client: pg
+    connection:
+      host: ${POSTGRES_HOST}
+      port: ${POSTGRES_PORT}
+      user: ${POSTGRES_USER}
+      password: ${POSTGRES_PASSWORD}
+    knexConfig:
+      pool:
+        min: 2
+        max: 10
+        acquireTimeoutMillis: 60000
+        idleTimeoutMillis: 60000
+
+integrations:
+  github:
+    - host: github.com
+      token: ${GITHUB_TOKEN}
+
+auth:
+  providers:
+    guest:
+      dangerouslyAllowOutsideDevelopment: true
+
+catalog:
+  rules:
+    - allow: [Component, System, API, Resource, Location, Template, Group, User]
+  locations:
+    # -- Catalog entities from GitHub (single repo) --
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/systems/ecommerce.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/auth.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/user.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/product.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/cart.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/order.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/review.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/notification.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/shipping.yaml
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/frontend.yaml
+    # -- Organization --
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/catalog/org/platform-team.yaml
+      rules:
+        - allow: [User, Group]
+    # -- Deploy Service Template --
+    - type: url
+      target: https://github.com/duynhlab/backstage/blob/main/templates/deploy-service/template.yaml
+      rules:
+        - allow: [Template]
+
+kubernetes:
+  serviceLocatorMethod:
+    type: multiTenant
+  clusterLocatorMethods:
+    - type: config
+      clusters:
+        - url: https://kubernetes.default.svc
+          name: backstage-dev
+          authProvider: serviceAccount
+          skipTLSVerify: true
+          skipMetricsLookup: true

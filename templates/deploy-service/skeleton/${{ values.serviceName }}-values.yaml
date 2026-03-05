@@ -1,0 +1,8 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ${{ values.serviceName }}
+spec:
+  values:
+    image:
+      tag: "${{ values.imageTag }}"

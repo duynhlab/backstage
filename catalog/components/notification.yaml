@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: notification
+  description: Notification and messaging microservice
+  annotations:
+    backstage.io/kubernetes-id: notification
+    backstage.io/kubernetes-namespace: notification
+    github.com/project-slug: duynhlab/notification-service
+  tags: [go, microservice]
+  links:
+    - url: https://github.com/duynhlab/notification-service
+      title: GitHub Repository
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: duynhlab-ecommerce

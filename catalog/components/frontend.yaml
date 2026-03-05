@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: frontend
+  description: E-commerce web frontend
+  annotations:
+    backstage.io/kubernetes-id: frontend
+    backstage.io/kubernetes-namespace: default
+    github.com/project-slug: duynhlab/frontend
+  tags: [typescript, frontend]
+  links:
+    - url: https://github.com/duynhlab/frontend
+      title: GitHub Repository
+spec:
+  type: website
+  lifecycle: production
+  owner: platform-team
+  system: duynhlab-ecommerce

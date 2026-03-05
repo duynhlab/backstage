@@ -1,0 +1,106 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: deploy-service
+  title: Deploy Service
+  description: |
+    Deploy a new version of a microservice by creating a PR to the homelab
+    GitOps repo. Flux will automatically reconcile the change once merged.
+  tags:
+    - deploy
+    - gitops
+    - flux
+spec:
+  owner: platform-team
+  type: deployment
+
+  parameters:
+    - title: Service to Deploy
+      required:
+        - serviceName
+        - imageTag
+      properties:
+        serviceName:
+          title: Service Name
+          type: string
+          description: The microservice to deploy
+          enum:
+            - auth
+            - user
+            - product
+            - cart
+            - order
+            - review
+            - notification
+            - shipping
+            - frontend
+          enumNames:
+            - Auth Service
+            - User Service
+            - Product Service
+            - Cart Service
+            - Order Service
+            - Review Service
+            - Notification Service
+            - Shipping Service
+            - Frontend
+        imageTag:
+          title: Image Tag
+          type: string
+          description: "The image tag to deploy (e.g. v1.2.3, latest, sha-abc123)"
+          ui:autofocus: true
+    - title: Target Environment
+      required:
+        - environment
+      properties:
+        environment:
+          title: Environment
+          type: string
+          description: Target deployment environment
+          default: local
+          enum:
+            - local
+            - production
+          enumNames:
+            - Local (Kind cluster)
+            - Production (requires approval)
+
+  steps:
+    - id: fetch-base
+      name: Generate image tag update
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: kubernetes/apps
+        values:
+          serviceName: ${{ parameters.serviceName }}
+          imageTag: ${{ parameters.imageTag }}
+          environment: ${{ parameters.environment }}
+
+    - id: publish-pr
+      name: Create Pull Request to GitOps repo
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?repo=homelab&owner=duynhlab
+        branchName: deploy/${{ parameters.serviceName }}-${{ parameters.imageTag }}
+        title: "deploy(${{ parameters.environment }}): ${{ parameters.serviceName }} -> ${{ parameters.imageTag }}"
+        description: |
+          ## Deployment Request
+
+          | Field | Value |
+          |-------|-------|
+          | **Service** | `${{ parameters.serviceName }}` |
+          | **Image Tag** | `${{ parameters.imageTag }}` |
+          | **Environment** | `${{ parameters.environment }}` |
+          | **Requested by** | `${{ user.entity.metadata.name }}` |
+
+          This PR was created by the Backstage Deploy Service template.
+          Once merged, Flux will automatically reconcile the HelmRelease.
+
+  output:
+    links:
+      - title: Pull Request
+        url: ${{ steps['publish-pr'].output.remoteUrl }}
+      - title: View Service in Catalog
+        icon: catalog
+        entityRef: component:default/${{ parameters.serviceName }}

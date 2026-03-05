@@ -1,0 +1,18 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: user
+  description: User profile and account management microservice
+  annotations:
+    backstage.io/kubernetes-id: user
+    backstage.io/kubernetes-namespace: user
+    github.com/project-slug: duynhlab/user-service
+  tags: [go, microservice]
+  links:
+    - url: https://github.com/duynhlab/user-service
+      title: GitHub Repository
+spec:
+  type: service
+  lifecycle: production
+  owner: platform-team
+  system: duynhlab-ecommerce

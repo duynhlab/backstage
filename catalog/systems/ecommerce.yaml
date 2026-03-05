@@ -1,0 +1,7 @@
+apiVersion: backstage.io/v1alpha1
+kind: System
+metadata:
+  name: duynhlab-ecommerce
+  description: duynhlab e-commerce microservices platform
+spec:
+  owner: platform-team

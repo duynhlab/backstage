@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: backstage
+  description: Internal Developer Platform - Backstage portal for duynhlab microservices
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+    github.com/project-slug: duynhlab/backstage
+  tags: [backstage, idp, typescript, react, platform-engineering]
+  links:
+    - url: https://github.com/duynhlab/backstage
+      title: GitHub Repository
+spec:
+  type: website
+  lifecycle: production
+  owner: platform-team
+  system: duynhlab-ecommerce
