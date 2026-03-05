@@ -33,35 +33,32 @@ catalog:
   rules:
     - allow: [Component, System, API, Resource, Location, Template, Group, User]
   locations:
-    # -- Catalog entities from GitHub (single repo) --
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/systems/ecommerce.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/auth.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/user.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/product.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/cart.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/order.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/review.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/notification.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/shipping.yaml
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/components/frontend.yaml
-    # -- Organization --
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/catalog/org/platform-team.yaml
+    - type: file
+      target: ./catalog/systems/ecommerce.yaml
+    - type: file
+      target: ./catalog/components/auth.yaml
+    - type: file
+      target: ./catalog/components/user.yaml
+    - type: file
+      target: ./catalog/components/product.yaml
+    - type: file
+      target: ./catalog/components/cart.yaml
+    - type: file
+      target: ./catalog/components/order.yaml
+    - type: file
+      target: ./catalog/components/review.yaml
+    - type: file
+      target: ./catalog/components/notification.yaml
+    - type: file
+      target: ./catalog/components/shipping.yaml
+    - type: file
+      target: ./catalog/components/frontend.yaml
+    - type: file
+      target: ./catalog/org/platform-team.yaml
       rules:
         - allow: [User, Group]
-    # -- Deploy Service Template --
-    - type: url
-      target: https://github.com/duynhlab/backstage/blob/main/templates/deploy-service/template.yaml
+    - type: file
+      target: ./templates/deploy-service/template.yaml
       rules:
         - allow: [Template]
 
