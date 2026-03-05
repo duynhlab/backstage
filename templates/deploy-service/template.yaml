@@ -4,8 +4,8 @@ metadata:
   name: deploy-service
   title: Deploy Service
   description: |
-    Deploy a new version of a microservice by creating a PR to the homelab
-    GitOps repo. Flux will automatically reconcile the change once merged.
+    Deploy a new version of a microservice to the Kind cluster by patching the
+    HelmRelease image tag. Flux will automatically reconcile the change.
   tags:
     - deploy
     - gitops
@@ -49,58 +49,34 @@ spec:
           type: string
           description: "The image tag to deploy (e.g. v1.2.3, latest, sha-abc123)"
           ui:autofocus: true
-    - title: Target Environment
-      required:
-        - environment
-      properties:
-        environment:
-          title: Environment
-          type: string
-          description: Target deployment environment
-          default: local
-          enum:
-            - local
-            - production
-          enumNames:
-            - Local (Kind cluster)
-            - Production (requires approval)
 
   steps:
-    - id: fetch-base
-      name: Generate image tag update
-      action: fetch:template
+    - id: log-deploy-info
+      name: Deployment summary
+      action: debug:log
       input:
-        url: ./skeleton
-        targetPath: kubernetes/apps
-        values:
-          serviceName: ${{ parameters.serviceName }}
-          imageTag: ${{ parameters.imageTag }}
-          environment: ${{ parameters.environment }}
+        message: |
+          Deploying ${{ parameters.serviceName }} with image tag ${{ parameters.imageTag }}
 
-    - id: publish-pr
-      name: Create Pull Request to GitOps repo
-      action: publish:github:pull-request
+    - id: log-deploy-command
+      name: kubectl patch command
+      action: debug:log
       input:
-        repoUrl: github.com?repo=homelab&owner=duynhlab
-        branchName: deploy/${{ parameters.serviceName }}-${{ parameters.imageTag }}
-        title: "deploy(${{ parameters.environment }}): ${{ parameters.serviceName }} -> ${{ parameters.imageTag }}"
-        description: |
-          ## Deployment Request
-
-          | Field | Value |
-          |-------|-------|
-          | **Service** | `${{ parameters.serviceName }}` |
-          | **Image Tag** | `${{ parameters.imageTag }}` |
-          | **Environment** | `${{ parameters.environment }}` |
-          | **Requested by** | `${{ user.entity.metadata.name }}` |
-
-          This PR was created by the Backstage Deploy Service template.
-          Once merged, Flux will automatically reconcile the HelmRelease.
+        message: >-
+          kubectl -n ${{ parameters.serviceName }} patch helmrelease ${{ parameters.serviceName }}
+          --type merge -p '{"spec":{"values":{"image":{"tag":"${{ parameters.imageTag }}"}}}}'
 
   output:
     links:
-      - title: Pull Request
-        url: ${{ steps['publish-pr'].output.remoteUrl }}
       - title: View Service in Catalog
         icon: catalog
         entityRef: component:default/${{ parameters.serviceName }}
+    text:
+      - title: Deploy Command
+        content: |
+          Run this to deploy **${{ parameters.serviceName }}** to **${{ parameters.imageTag }}**:
+
+          ```
+          kubectl -n ${{ parameters.serviceName }} patch helmrelease ${{ parameters.serviceName }} \
+            --type merge -p '{"spec":{"values":{"image":{"tag":"${{ parameters.imageTag }}"}}}}'
+          ```
