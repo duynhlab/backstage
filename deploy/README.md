@@ -21,11 +21,11 @@ flowchart TD
             FluxOp --> HelmCtrl
             FluxOp --> KustCtrl
         end
-        subgraph nsApps ["namespace: apps"]
-            HR["HelmReleases\n(microservices)"]
+        subgraph nsServices ["per-service namespaces"]
+            HR["HelmReleases\n(auth, user, product, cart,\norder, review, notification,\nshipping, frontend)"]
         end
         BS -->|"RBAC"| nsFlux
-        BS -->|"RBAC"| nsApps
+        BS -->|"RBAC"| nsServices
         HelmCtrl --> HR
     end
 ```
@@ -41,7 +41,7 @@ flowchart TD
 
 ```bash
 # One-command setup
-./deploy/kind/setup.sh
+./deploy/overlays/kind/setup.sh
 ```
 
 Or step by step:
@@ -49,7 +49,7 @@ Or step by step:
 ### 1. Create Kind Cluster
 
 ```bash
-kind create cluster --config deploy/kind/kind-config.yaml
+kind create cluster --config deploy/overlays/kind/kind-config.yaml
 ```
 
 ### 2. Deploy PostgreSQL
@@ -69,7 +69,7 @@ helm install flux-operator \
   --namespace flux-system --create-namespace
 
 kubectl apply -f deploy/flux/flux-instance.yaml
-kubectl apply -f deploy/flux/backstage-rbac.yaml
+kubectl apply -f deploy/flux/rbac.yaml
 ```
 
 ### 4. Build and Load Backstage Image
@@ -93,10 +93,7 @@ kubectl apply -f deploy/base/secret.yaml
 ### 6. Deploy Backstage
 
 ```bash
-kubectl apply -f deploy/base/namespace.yaml
-kubectl apply -f deploy/base/serviceaccount.yaml
-kubectl apply -f deploy/base/service.yaml
-kubectl apply -f deploy/base/deployment.yaml
+kubectl apply -k deploy/base/
 ```
 
 ### 7. Access Backstage
@@ -119,25 +116,29 @@ kubectl -n flux-system get pods
 # Check Backstage
 kubectl -n backstage get pods
 kubectl -n backstage logs deployment/backstage --tail=20
+
+# Check HelmReleases
+kubectl get helmrelease -A
 ```
 
 ## File Structure
 
 ```
 deploy/
-├── kind/
-│   ├── kind-config.yaml       # Kind cluster with NodePort 30007
-│   └── setup.sh               # One-command full setup
+├── overlays/
+│   └── kind/
+│       ├── kind-config.yaml       # Kind cluster with NodePort 30007
+│       └── setup.sh               # One-command full setup
 ├── base/
-│   ├── namespace.yaml          # backstage namespace
-│   ├── serviceaccount.yaml     # backstage SA (used for K8s/Flux RBAC)
-│   ├── deployment.yaml         # Backstage pod with PostgreSQL env vars
-│   ├── service.yaml            # NodePort service on 30007
-│   └── secret.yaml.example     # Template for GITHUB_TOKEN and PG password
+│   ├── kustomization.yaml         # Kustomize base
+│   ├── namespace.yaml             # backstage namespace
+│   ├── serviceaccount.yaml        # backstage SA (used for K8s/Flux RBAC)
+│   ├── deployment.yaml            # Backstage pod with PostgreSQL env vars
+│   ├── service.yaml               # NodePort service on 30007
+│   └── secret.yaml.example        # Template for GITHUB_TOKEN and PG password
 └── flux/
-    ├── flux-instance.yaml      # FluxInstance CRD (installs Flux controllers)
-    ├── backstage-rbac.yaml     # RBAC: flux-view + patch-flux-resources
-    └── example-helmrelease.yaml # Example HelmRelease with labels
+    ├── flux-instance.yaml         # FluxInstance CRD (installs Flux controllers)
+    └── rbac.yaml                  # RBAC: flux-view + patch-flux-resources
 ```
 
 ## RBAC Explained

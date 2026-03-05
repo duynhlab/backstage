@@ -11,7 +11,7 @@ flowchart TD
     subgraph devWorkflow ["Developer Workflow"]
         DevPush["Dev pushes code"]
         CI["GitHub Actions CI\n(test, build, push image)"]
-        Registry["ghcr.io/duynhlab/*"]
+        Registry["ghcr.io/duynhne/*"]
         DevPush --> CI --> Registry
     end
 
@@ -30,21 +30,21 @@ flowchart TD
             HelmCtrl["helm-controller"]
         end
         subgraph apps ["Microservice HelmReleases"]
-            HR["auth, user, product,\ncart, order, review,\nnotification, shipping"]
+            HR["auth, user, product,\ncart, order, review,\nnotification, shipping, frontend"]
         end
         PG["PostgreSQL"]
     end
 
     subgraph github ["GitHub"]
-        ServiceRepos["8 service repos\n+ frontend"]
-        MonitoringRepo["monitoring repo\n(GitOps manifests)"]
+        ServiceRepos["9 service repos\n(source code)"]
+        HomelabRepo["homelab repo\n(GitOps manifests)"]
     end
 
-    DeployTemplate -->|"Creates PR"| MonitoringRepo
-    SrcCtrl -->|"Watches"| MonitoringRepo
+    DeployTemplate -->|"Creates PR"| HomelabRepo
+    SrcCtrl -->|"Watches"| HomelabRepo
     HelmCtrl -->|"Reconciles"| HR
     HelmCtrl -->|"Pulls images"| Registry
-    Catalog -->|"catalog-info.yaml"| ServiceRepos
+    Catalog -->|"catalog entities"| backstagePortal
     backstagePortal -->|"K8s API + RBAC"| k8sCluster
 ```
 
@@ -61,7 +61,7 @@ sequenceDiagram
     Note over Dev: CI built image v1.2.3
     Dev->>BS: Click "Deploy" in Catalog
     Dev->>BS: Select service, tag, environment
-    BS->>GH: Create PR to monitoring repo
+    BS->>GH: Create PR to homelab repo
     Note over GH: PR merged
     Flux->>GH: Detect change (1 min)
     Flux->>K8s: Reconcile HelmRelease
@@ -71,7 +71,7 @@ sequenceDiagram
 ## Prerequisites
 
 - **Node.js** 22 or 24
-- **Yarn** 4.4.1 (included via `packageManager` in `package.json`)
+- **Yarn** 4.4.1 (included via `.yarnrc.yml`)
 - **Docker** (for building production image)
 - **GitHub Personal Access Token** with `repo` scope
 
@@ -101,7 +101,7 @@ Open http://localhost:3000 in your browser. Local development uses **SQLite in-m
 
 ```bash
 # One-command setup: Kind cluster + PostgreSQL + Flux Operator + Backstage
-./deploy/kind/setup.sh
+./deploy/overlays/kind/setup.sh
 ```
 
 Or step by step -- see [deploy/README.md](deploy/README.md).
@@ -135,7 +135,7 @@ kubectl port-forward -n backstage svc/backstage 7007:7007
 
 | Plugin | Package | Purpose |
 |--------|---------|---------|
-| Software Catalog | `@backstage/plugin-catalog` | Service registry from `catalog-info.yaml` |
+| Software Catalog | `@backstage/plugin-catalog` | Service registry from catalog YAML |
 | Kubernetes | `@backstage/plugin-kubernetes` | Pod status, logs, events per service |
 | Flux | `@backstage-community/plugin-flux` | HelmRelease status, Sync/Suspend, OCI sources |
 | Software Templates | `@backstage/plugin-scaffolder` | Create services + deploy via UI form |
@@ -148,7 +148,21 @@ kubectl port-forward -n backstage svc/backstage 7007:7007
 backstage/
 ├── app-config.yaml                 # Dev config (SQLite, localhost)
 ├── app-config.production.yaml      # Production config (PostgreSQL, K8s)
-├── catalog-info.yaml               # Self-registration in catalog
+├── catalog/                        # Catalog entities (single-repo approach)
+│   ├── systems/ecommerce.yaml      # System definition
+│   ├── components/                 # 1 file per service (9 total)
+│   │   ├── auth.yaml
+│   │   ├── user.yaml
+│   │   ├── product.yaml
+│   │   ├── cart.yaml
+│   │   ├── order.yaml
+│   │   ├── review.yaml
+│   │   ├── notification.yaml
+│   │   ├── shipping.yaml
+│   │   └── frontend.yaml
+│   └── org/platform-team.yaml      # Group + User entities
+├── templates/                      # Scaffolder templates
+│   └── deploy-service/             # Dev self-service deploy template
 ├── packages/
 │   ├── app/                        # Frontend (React)
 │   │   └── src/
@@ -161,14 +175,12 @@ backstage/
 │       ├── src/index.ts            # Plugin registration
 │       └── Dockerfile              # Production image
 ├── deploy/                         # Kubernetes deployment manifests
-│   ├── kind/                       # Kind cluster config + setup script
-│   ├── base/                       # Backstage K8s resources
+│   ├── overlays/kind/              # Kind cluster config + setup script
+│   ├── base/                       # Backstage K8s resources (Kustomize base)
 │   └── flux/                       # Flux Operator + RBAC
-├── templates/                      # Scaffolder templates
-│   └── deploy-service/             # Dev self-service deploy template
 ├── docs/                           # Documentation
 │   └── flux-integration.md         # Dev team Flux guide
-├── examples/                       # Sample entities
+├── examples/                       # Backstage default examples
 └── .github/workflows/ci.yml        # CI: build + push to GHCR
 ```
 
@@ -186,12 +198,14 @@ backstage/
 
 ### Catalog Sources
 
-Configured in `app-config.yaml` under `catalog.locations`:
+All catalog entities live in `catalog/` (single-repo approach). Configured in `app-config.yaml` / `app-config.production.yaml`:
 
-- **8 microservices**: `catalog-info.yaml` from each service repo
-- **Frontend**: `catalog-info.yaml` from `duynhlab/frontend`
-- **System + Resources**: from `duynhlab/monitoring`
-- **Software Templates**: create-service + deploy-service
+- **9 microservices**: individual YAML files in `catalog/components/`
+- **System**: `catalog/systems/ecommerce.yaml`
+- **Organization**: `catalog/org/platform-team.yaml`
+- **Software Templates**: `templates/deploy-service/template.yaml`
+
+Each component maps to a HelmRelease in `duynhlab/homelab` via `backstage.io/kubernetes-id` annotation.
 
 ### Flux Integration
 
@@ -199,7 +213,6 @@ See [docs/flux-integration.md](docs/flux-integration.md) for the full dev team g
 - How to add Kubernetes/Flux annotations to your service
 - How to label HelmReleases for Backstage discovery
 - How to use the Deploy Service template
-- Environment promotion (dev -> staging -> production)
 
 ## CI/CD
 
@@ -214,7 +227,7 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) on push/PR to `main`:
 
 | Repository | Purpose |
 |------------|---------|
-| [duynhlab/monitoring](https://github.com/duynhlab/monitoring) | GitOps manifests, Helm charts, Software Templates |
+| [duynhlab/homelab](https://github.com/duynhlab/homelab) | GitOps manifests (HelmReleases, infra, Flux config) |
 | [duynhlab/auth-service](https://github.com/duynhlab/auth-service) | Auth microservice |
 | [duynhlab/user-service](https://github.com/duynhlab/user-service) | User microservice |
 | [duynhlab/product-service](https://github.com/duynhlab/product-service) | Product microservice |
@@ -223,3 +236,4 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) on push/PR to `main`:
 | [duynhlab/review-service](https://github.com/duynhlab/review-service) | Review microservice |
 | [duynhlab/notification-service](https://github.com/duynhlab/notification-service) | Notification microservice |
 | [duynhlab/shipping-service](https://github.com/duynhlab/shipping-service) | Shipping microservice |
+| [duynhlab/frontend](https://github.com/duynhlab/frontend) | Frontend web application |
