@@ -17,16 +17,25 @@ spec:
         checksum/github-secret: {{ .Values.github.token | sha256sum }}
     spec:
       serviceAccountName: backstage
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: backstage
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 7007
               name: http
           env:
             - name: POSTGRES_HOST
-              value: {{ .Values.db.host }}
+              value: {{ .Values.db.host | default (printf "backstage-db-rw.%s.svc.cluster.local" .Release.Namespace) }}
             - name: POSTGRES_PORT
               value: {{ .Values.db.port | quote }}
             - name: POSTGRES_USER

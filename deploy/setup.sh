@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CLUSTER_NAME="backstage-dev"
 
-echo "=== Kind + FluxCD + CNPG + Backstage: platform POC setup ==="
+echo "=== Kind + FluxCD + CNPG + Backstage: platform setup ==="
 
 # ── 1. Kind cluster ─────────────────────────────────────────────────
 if kind get clusters 2>/dev/null | grep -q "^${CLUSTER_NAME}$"; then
@@ -33,7 +33,7 @@ echo "[3/4] Loading image into Kind..."
 kind load docker-image backstage:latest --name "${CLUSTER_NAME}"
 
 # ── 4. Install everything via helmfile ──────────────────────────────
-# flux-operator + flux-instance (syncs duynhlab/gitops-poc),
+# flux-operator + flux-instance (syncs duynhlab/gitops),
 # cloudnative-pg + backstage-db (CNPG Cluster), backstage
 echo "[4/4] Applying helmfile..."
 export GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token)}"

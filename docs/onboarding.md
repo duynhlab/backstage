@@ -1,119 +1,108 @@
 # Service Onboarding Guide
 
-How to get your service running on the platform — **without asking DevOps/SRE to do it for you**.
-You fill a form in Backstage; the platform opens a pull request; DevOps/SRE only review and approve.
+How to get your service running on the platform — **without asking DevOps/SRE
+to do it for you**. You fill a form in Backstage; the platform opens a pull
+request to [duynhlab/gitops](https://github.com/duynhlab/gitops); DevOps/SRE
+review and merge; Flux does the rest.
 
 ## TL;DR
 
-| I want to... | Template | What you get |
-|--------------|----------|--------------|
-| Run a new service | **Onboard New Service** | Namespace + HelmRelease + catalog entry, via one PR |
-| Change image / env / replicas | **Update Service** | Updated HelmRelease, via one PR |
+| I want to... | How | Result |
+|--------------|-----|--------|
+| Ship code to **dev** | Merge your code PR in the service repo | CI builds `sha-X`, bumps `apps/dev` automatically |
+| Run a **new service** | Backstage → **Onboard New Service** | One PR: base + dev/uat/prod + catalog entity |
+| **Promote / change** uat or prod | Backstage → **Update / Promote Service** | One PR touching one env file |
 
-Nobody pushes to [duynhlab/gitops-poc](https://github.com/duynhlab/gitops-poc) directly.
-Every change is a reviewed pull request; Flux applies whatever is on `main`.
+Nobody pushes to `duynhlab/gitops` by hand. Branch protection + CODEOWNERS
+enforce DevOps/SRE review; the only automation lane is CI's dev tag bump.
+
+```mermaid
+sequenceDiagram
+    participant Dev as Developer
+    participant BS as Backstage
+    participant Git as gitops repo
+    participant Ops as DevOps/SRE
+    participant Flux
+    Dev->>BS: fill template form
+    BS->>Git: pull request
+    Ops->>Git: review + merge
+    Flux->>Flux: reconcile (~1m)
+    BS-->>Dev: catalog + Flux tab show the result
+```
 
 ## Prerequisites
 
-- Backstage running at http://localhost:7007 (see [deploy/README.md](../deploy/README.md))
-- Sign in as **Guest** (POC setup)
+- Backstage at http://localhost:7007 (see [deploy/README.md](../deploy/README.md)), guest sign-in
+- Your service repo follows the org conventions (see
+  [checkout-service](https://github.com/duynhlab/checkout-service)): CI via
+  `gha-workflows`, image at `ghcr.io/duynhlab/<name>-service/<name>-service`,
+  `/health` `/ready` `/metrics` on :8080, env-driven config
 
 ## Onboard a new service
 
-1. Open **Backstage → Create...** (sidebar) → **Onboard New Service**
-2. Fill **Service details**:
-   - **Service name** — lowercase DNS-safe, e.g. `payment`. Becomes the namespace,
-     the HelmRelease name, and the catalog entity name.
-   - **Description** and **Owner** (your team)
-3. Fill **Runtime configuration**:
-   - **Image repository / tag** — defaults to `nginx:1.29-alpine` (the POC chart serves
-     a landing page; any nginx-compatible image works)
-   - **Replicas** (1–5)
-   - **APP_ENV** — dev / staging / production
-   - **APP_MESSAGE** — free text, shown on the service landing page
-4. Click **Review → Create**
-5. Open the **Pull Request** link from the output page and wait for DevOps/SRE approval
+1. **Create...** → **Onboard New Service**
+2. Fill **Service details**: name (lowercase DNS-safe, e.g. `payment`),
+   description, owner team
+3. Fill **Image**: repository (empty = org convention) and the initial
+   immutable tag from your CI (e.g. `sha-abc1234`)
+4. Set **replicas per environment** (defaults: dev 1, uat 2, prod 2)
+5. **Review → Create** → open the PR link and request DevOps/SRE review
 
-**What the PR contains** (rendered from your form, nothing hand-written):
+The PR adds, for service `payment`:
 
 ```
-apps/<name>/namespace.yaml     # Namespace
-apps/<name>/release.yaml       # HelmRelease → shared chart charts/app
-catalog/<name>.yaml            # Backstage Component entity
+apps/base/payment/                 # env-invariant HelmRelease (mop chart, probes, resources)
+apps/dev/payment/                  # namespace payment-dev + full env contract, LOG_LEVEL=debug
+apps/uat/payment/                  # namespace payment-uat, staging, LOG_LEVEL=info
+apps/prod/payment/                 # namespace payment-prod, production, LOG_LEVEL=warn
+catalog/payment.yaml               # Backstage entity (auto-discovered)
 ```
 
-**After merge, automatically:**
+After merge: Flux deploys all three environments within ~1 minute and the
+service appears in the catalog within ~5 minutes — no manual registration.
 
-- Flux detects the change within ~1 minute and deploys your service into namespace `<name>`
-- Backstage discovers `catalog/<name>.yaml` within ~1 minute — your service appears
-  in the Software Catalog with Kubernetes and Flux tabs wired up
+To wire **continuous dev deploys**, add the `update-gitops-dev` job to your
+service's `build.yml` (copy from
+[checkout-service](https://github.com/duynhlab/checkout-service/blob/main/.github/workflows/build.yml))
+and set the `GITOPS_TOKEN` secret.
 
-**Verify:** open your service in the catalog → **Flux tab** shows the HelmRelease `Ready`,
-**Kubernetes tab** shows the pods. Or:
+## Update or promote a service
 
-```bash
-kubectl -n <name> get pods,helmrelease
-kubectl -n <name> port-forward svc/<name> 8080:80   # landing page on :8080
-```
+1. **Create...** → **Update / Promote Service**
+2. Pick the service and the **environment** (`uat`/`prod` for promotions;
+   `dev` is normally CI-managed)
+3. Fill the **full desired state**: image tag, replicas, LOG_LEVEL —
+   the form replaces the env file, so set every field to what you want
+4. **Review → Create** → send the PR to DevOps/SRE
 
-## Update a running service (image, env, replicas)
-
-1. **Create...** → **Update Service (image / env / replicas)**
-2. Pick your service from the catalog dropdown
-3. Fill in the **full desired state** — the form replaces the current values,
-   so set every field to what you want it to be (not just the one you're changing)
-4. **Review → Create** → send the PR link to DevOps/SRE
-
-After merge, Flux rolls out the change within ~1 minute. Env changes are visible
-on the service landing page (`APP_ENV`, `APP_MESSAGE` are rendered into it).
+Promotion is just this template with the tag that already ran in the lower
+environment. See [environments.md](environments.md) for the full model and
+rollback.
 
 ## For DevOps/SRE: reviewing self-service PRs
 
-You are the only gate between a dev form and the cluster. Every PR is machine-generated,
-so review is fast:
+Every PR is machine-generated, so review is fast:
 
-- **Onboarding PRs** touch exactly three new files under `apps/<name>/` and `catalog/<name>.yaml`.
-  Check: name doesn't collide, image source is acceptable, replicas/resources sane.
-- **Update PRs** touch exactly one file: `apps/<name>/release.yaml`. The diff IS the change.
-- Anything touching `charts/`, `clusters/`, or another service's directory did **not**
-  come from a template — inspect carefully.
-
-Merge = approve = deploy. No kubectl needed:
+- **Onboarding PRs** add exactly: `apps/base/<name>/`, three env dirs and
+  `catalog/<name>.yaml`. Check: name collision, image source, replicas sane.
+- **Update PRs** touch exactly one file: `apps/<env>/<name>/release-patch.yaml`.
+  The diff is the change. Verify the tag exists in ghcr and ran in the lower env.
+- Anything touching `charts/`, `clusters/`, another service's directory, or
+  `CODEOWNERS` did **not** come from a template — inspect carefully.
 
 ```bash
-gh pr list -R duynhlab/gitops-poc
-gh pr diff <n> -R duynhlab/gitops-poc
-gh pr merge <n> -R duynhlab/gitops-poc --squash --delete-branch
+gh pr list -R duynhlab/gitops
+gh pr diff <n> -R duynhlab/gitops
+gh pr merge <n> -R duynhlab/gitops --squash --delete-branch
 ```
-
-To enforce reviews at the GitHub level (not enabled in the POC), see the
-branch-protection command in the [gitops-poc README](https://github.com/duynhlab/gitops-poc#enforcing-review-optional-hardening).
 
 ## Troubleshooting
 
 | Symptom | Check |
 |---------|-------|
-| PR not created after submitting the form | Task log in Backstage (**...** → task) — usually an expired `GITHUB_TOKEN` |
-| Merged but service not deployed | `flux get kustomization apps -n flux-system` and `kubectl -n <name> describe helmrelease <name>` |
-| Service deployed but not in catalog | Wait ~1 min (provider refresh), then check `catalog/<name>.yaml` merged on `main` |
-| Flux tab empty on the entity page | `backstage.io/kubernetes-id` annotation must equal the HelmRelease label (templates set both) |
-
-## How it works
-
-```mermaid
-sequenceDiagram
-    participant Dev
-    participant BS as Backstage
-    participant GH as gitops-poc
-    participant Ops as DevOps/SRE
-    participant Flux
-    participant K8s as Kind cluster
-
-    Dev->>BS: Fill template form
-    BS->>GH: PR (manifests + catalog entity)
-    Ops->>GH: Review & merge
-    Flux->>GH: Poll main (1m)
-    Flux->>K8s: Reconcile HelmRelease
-    BS->>GH: Discover catalog/*.yaml (1m)
-    Dev->>BS: Service live in catalog, Flux tab green
-```
+| PR not created after submitting the form | Task log in Backstage — usually an expired `GITHUB_TOKEN` |
+| Merged but not deployed | `flux get kustomization apps-<env> -n flux-system`, then `kubectl -n <svc>-<env> describe helmrelease <svc>` |
+| Deployed but not in catalog | Wait ~5 min (provider refresh), confirm `catalog/<svc>.yaml` merged on main |
+| Kubernetes tab empty | Entity needs `backstage.io/kubernetes-label-selector: app.kubernetes.io/name=<svc>` (the template sets it) |
+| Flux tab empty | HelmRelease needs the `backstage.io/kubernetes-id: <svc>` label (the template sets it) |
+| dev not auto-updating | `GITOPS_TOKEN` secret missing/expired in the service repo, or the `update-gitops-dev` job failed |

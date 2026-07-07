@@ -8,14 +8,14 @@ spec:
   values:
     replicaCount: ${{ values.replicasUat }}
     image:
-      tag: "${{ values.imageTag }}"
+      tag: ${{ values.imageTag | dump }}
     env:
       - name: SERVICE_NAME
         value: "${{ values.serviceName }}"
       - name: PORT
         value: "8080"
       - name: VERSION
-        value: "${{ values.imageTag }}"
+        value: ${{ values.imageTag | dump }}
       - name: ENV
         value: "staging"
       - name: LOG_LEVEL

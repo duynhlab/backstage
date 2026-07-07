@@ -1,210 +1,63 @@
-# Flux Integration Guide for Dev Team
+# Flux Integration
 
-This guide explains how Backstage integrates with Flux Operator to provide GitOps-based deployment visibility and self-service deploy for the duynhlab microservices ecosystem.
+How Backstage and Flux are wired together on this platform.
 
-## How It Works
+## Moving parts
 
 ```mermaid
 flowchart TD
-    subgraph devWorkflow ["Developer Workflow"]
-        DevPush["Dev pushes code\nto service repo"]
-        CI["GitHub Actions CI\n(test, build, push image)"]
-        Registry["Container Registry\n(ghcr.io/duynhne/*)"]
-        DevPush --> CI --> Registry
+    subgraph gitops ["duynhlab/gitops"]
+        Clusters["clusters/kind\n(sources + 3 env Kustomizations)"]
+        Apps["apps/{dev,uat,prod}/&lt;svc&gt;"]
     end
 
-    subgraph backstagePortal ["Backstage Portal"]
-        Login["Dev opens Backstage"]
-        Catalog["Software Catalog\n(view all services)"]
-        EntityPage["Service Detail Page"]
-        FluxTab["Flux Tab\n(HelmRelease status, sync)"]
-        K8sTab["Kubernetes Tab\n(pods, logs, events)"]
-        DeployBtn["Deploy / Promote"]
-        ScaffolderForm["Fill form:\n- Service\n- Image tag\n- Environment"]
-        Login --> Catalog --> EntityPage
-        EntityPage --> FluxTab
-        EntityPage --> K8sTab
-        EntityPage --> DeployBtn --> ScaffolderForm
+    subgraph cluster ["Cluster"]
+        FluxOp["flux-operator\n(helmfile-managed)"]
+        FI["FluxInstance 'flux'\nsync: gitops → clusters/kind"]
+        Ctrl["source / kustomize / helm /\nnotification controllers"]
+        HR["HelmReleases per env\n(mop chart from OCIRepository)"]
+        FluxOp --> FI --> Ctrl --> HR
     end
 
-    subgraph gitopsFlow ["GitOps Flow"]
-        PR["Scaffolder creates PR\nto homelab repo"]
-        Review["PR Review / Auto-merge"]
-        GitRepo["homelab repo"]
-        ScaffolderForm --> PR --> Review --> GitRepo
+    subgraph backstage ["Backstage"]
+        FluxTab["Flux tab (per service)"]
+        Runtime["Flux Runtime page"]
     end
 
-    subgraph k8sCluster ["Kubernetes Cluster"]
-        FluxSrc["Flux source-controller"]
-        FluxHelm["Flux helm-controller"]
-        Pods["Updated Pods"]
-        GitRepo -->|"Flux detects change"| FluxSrc
-        FluxSrc --> FluxHelm --> Pods
-    end
-
-    Pods -->|"Status visible in\nBackstage"| FluxTab
+    Ctrl -->|"sync 1m"| gitops
+    FluxTab -->|"K8s API: Flux CRDs by label"| cluster
+    Runtime -->|"controllers + status"| cluster
 ```
 
-## Deploy Sequence
+- Flux itself is installed by the **Flux Operator** via helmfile
+  (`deploy/helmfile.yaml.gotmpl`); the **FluxInstance** defines the
+  distribution and the sync target (`duynhlab/gitops`, path `clusters/kind`).
+- Backstage talks to the Kubernetes API with its ServiceAccount:
+  `flux-view-flux-system` (read Flux CRDs), `backstage-k8s-read` (workloads),
+  `backstage-flux-patch` (Sync/Suspend buttons).
 
-```mermaid
-sequenceDiagram
-    participant Dev as Developer
-    participant BS as Backstage Portal
-    participant GH as GitHub
-    participant Flux as Flux Controllers
-    participant K8s as Kubernetes
+## How entity ↔ resource matching works
 
-    Note over Dev: CI built ghcr.io/duynhne/auth-service/auth:v1.2.3
+Two annotations on the catalog entity (both set by the onboarding template):
 
-    Dev->>BS: Open auth in Catalog
-    Dev->>BS: Click "Deploy New Version"
-    Dev->>BS: Fill form (service, tag, env)
-    BS->>GH: Create PR to homelab repo
-    GH-->>Dev: PR link shown
+| Annotation | Used by | Matches |
+|------------|---------|---------|
+| `backstage.io/kubernetes-label-selector: app.kubernetes.io/name=<svc>` | Kubernetes tab | Workload labels rendered by the mop chart — pods from **all** environments |
+| `backstage.io/kubernetes-id: <svc>` | Flux tab | The `backstage.io/kubernetes-id` label on each HelmRelease |
 
-    Note over GH: PR merged
-    Flux->>GH: Detect change (polling 1m)
-    Flux->>K8s: Reconcile HelmRelease
-    K8s-->>Flux: Rolling update done
+## Useful views
 
-    Dev->>BS: Check Flux tab
-    BS-->>Dev: Status: Ready, v1.2.3
-```
-
-## Setting Up Your Service
-
-### Step 1: Catalog Entity
-
-Each service has a catalog entity in `catalog/components/<service>.yaml` with these annotations:
-
-```yaml
-apiVersion: backstage.io/v1alpha1
-kind: Component
-metadata:
-  name: auth
-  annotations:
-    backstage.io/kubernetes-id: auth
-    backstage.io/kubernetes-namespace: auth
-    github.com/project-slug: duynhlab/auth-service
-spec:
-  type: service
-  lifecycle: production
-  owner: platform-team
-  system: duynhlab-ecommerce
-```
-
-### Step 2: HelmRelease Labels
-
-In `duynhlab/homelab/kubernetes/apps/auth.yaml`, the HelmRelease must have a matching label:
-
-```yaml
-apiVersion: helm.toolkit.fluxcd.io/v2
-kind: HelmRelease
-metadata:
-  name: auth
-  namespace: auth
-  labels:
-    backstage.io/kubernetes-id: auth
-spec:
-  interval: 10m
-  chartRef:
-    kind: OCIRepository
-    name: mop-chart-oci
-    namespace: flux-system
-  values:
-    image:
-      repository: ghcr.io/duynhne/auth-service/auth
-      tag: latest
-```
-
-### How Matching Works
-
-```mermaid
-flowchart LR
-    subgraph catalogEntity ["catalog/components/auth.yaml"]
-        A["annotations:\n  backstage.io/kubernetes-id: auth"]
-    end
-    subgraph helmRelease ["HelmRelease"]
-        B["labels:\n  backstage.io/kubernetes-id: auth"]
-    end
-    catalogEntity -->|"values must\nbe identical"| helmRelease
-```
-
-Backstage reads the annotation from the catalog entity, then queries the Kubernetes API for all Flux CRDs (HelmRelease, Kustomization, OCIRepository, etc.) that have a matching label. This is how the Flux tab shows the right resources for each service.
-
-### Service Mapping
-
-| Service | HelmRelease | Namespace | Image |
-|---------|-------------|-----------|-------|
-| auth | `auth` | auth | `ghcr.io/duynhne/auth-service/auth` |
-| user | `user` | user | `ghcr.io/duynhne/user-service/user` |
-| product | `product` | product | `ghcr.io/duynhne/product-service/product` |
-| cart | `cart` | cart | `ghcr.io/duynhne/cart-service/cart` |
-| order | `order` | order | `ghcr.io/duynhne/order-service/order` |
-| review | `review` | review | `ghcr.io/duynhne/review-service/review` |
-| notification | `notification` | notification | `ghcr.io/duynhne/notification-service/notification` |
-| shipping | `shipping` | shipping | `ghcr.io/duynhne/shipping-service/shipping` |
-| frontend | `frontend` | default | `ghcr.io/duynhne/frontend/frontend` |
-
-All services use the shared Helm chart from `oci://ghcr.io/duyhenryer/charts/mop` (OCIRepository `mop-chart-oci`).
-
-## Self-Service (POC: gitops-poc repo)
-
-Two templates under **Create...** in the sidebar. Both open a pull request to
-[duynhlab/gitops-poc](https://github.com/duynhlab/gitops-poc) — **DevOps/SRE review
-and merge (CODEOWNERS), devs never get direct write access**.
-
-### Onboard New Service
-
-1. Open Backstage at `http://localhost:7007` → **Create...** → **Onboard New Service**
-2. Fill in: service name, owner, image, replicas, `APP_ENV`, `APP_MESSAGE`
-3. Backstage opens a PR adding `apps/<name>/` (Namespace + HelmRelease using the
-   shared nginx chart) and `catalog/<name>.yaml`
-4. After merge: Flux deploys within ~1 minute, and the catalog provider discovers
-   the entity automatically — no manual registration
-
-### Update Service (image / env / replicas)
-
-1. **Create...** → **Update Service**
-2. Pick the service (EntityPicker), then fill in the **desired state**:
-   image tag, replicas, `APP_ENV`, `APP_MESSAGE`
-3. Backstage opens a PR replacing `apps/<name>/release.yaml`
-4. DevOps/SRE merge → Flux rolls out the change (visible on the service's landing page)
-
-## Monitoring Flux Status
-
-### Entity Page - Flux Tab
-
-Each service page in Backstage has a **Flux** tab showing:
-- **HelmReleases**: deployment status, version, last reconciliation time
-- **Kustomizations**: applied manifests status
-- **Sources**: OCIRepository sync status
-- **Sync button**: force immediate reconciliation
-- **Suspend/Resume**: temporarily pause deployments
-
-### Flux Runtime Page
-
-Access `/flux-runtime` from the sidebar to see cluster-wide Flux status:
-- All Flux controllers and their versions
-- Global reconciliation status
+- **Service page → Flux tab**: the three HelmReleases (dev/uat/prod), applied
+  chart version and revision, Sync / Suspend / Resume buttons
+- **Service page → Kubernetes tab**: pods, logs and events across
+  `<svc>-dev/uat/prod`
+- **Sidebar → Flux Runtime**: controller health and versions cluster-wide
 
 ## Troubleshooting
 
-### Flux tab shows "No resources found"
-- Verify `backstage.io/kubernetes-id` annotation exists in the catalog entity
-- Verify the HelmRelease has a matching `backstage.io/kubernetes-id` label
-- Check that Backstage ServiceAccount has RBAC permissions (`flux-view-flux-system`)
-
-### HelmRelease shows "Failed"
-- Check Flux logs: `kubectl -n flux-system logs deployment/helm-controller`
-- Check the HelmRelease status: `kubectl -n <service> describe helmrelease <name>`
-- Verify the Helm chart exists and image is pullable
-
-### Sync button does not work
-- Verify `backstage-flux-patch` ClusterRole and ClusterRoleBinding are applied
-- Check that the Backstage ServiceAccount has patch permissions
-
-### Cannot access Kubernetes tab
-- Verify `kubernetes` section exists in `app-config.yaml` / `app-config.production.yaml`
-- Check the cluster URL and authentication method
+| Symptom | Check |
+|---------|-------|
+| Flux tab: "No resources found" | HelmRelease label `backstage.io/kubernetes-id` must equal the entity annotation |
+| HelmRelease Failed | `kubectl -n flux-system logs deploy/helm-controller`; `kubectl -n <ns> describe helmrelease <svc>` |
+| Sync button does nothing | `backstage-flux-patch` ClusterRoleBinding applied? (part of the backstage chart) |
+| Nothing syncs at all | `kubectl -n flux-system get fluxinstance,gitrepository,kustomization` |

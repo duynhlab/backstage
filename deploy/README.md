@@ -7,7 +7,7 @@ Everything is declared in **one helmfile** and installed into a local **Kind** c
 | Release | Chart | Namespace | Purpose |
 |---------|-------|-----------|---------|
 | flux-operator | `oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator` | flux-system | Manages the Flux distribution |
-| flux | `oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance` | flux-system | Installs Flux controllers, syncs [duynhlab/gitops-poc](https://github.com/duynhlab/gitops-poc) (`clusters/kind`) |
+| flux | `oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance` | flux-system | Installs Flux controllers, syncs [duynhlab/gitops](https://github.com/duynhlab/gitops) (`clusters/kind`) |
 | cloudnative-pg | `cnpg/cloudnative-pg` | cnpg-system | PostgreSQL operator |
 | backstage-db | `./charts/backstage-db` (local) | backstage | CNPG `Cluster` CR — PostgreSQL for Backstage |
 | backstage | `./charts/backstage` (local) | backstage | The portal itself (locally built image) |
@@ -27,12 +27,12 @@ flowchart TD
             FluxOp["flux-operator"] --> Flux["FluxInstance\n(source/kustomize/helm/notification)"]
         end
         subgraph apps ["per-service namespaces"]
-            HR["HelmReleases (demo, ...)\nnginx chart from gitops-poc"]
+            HR["HelmReleases per env\n(mop chart, checkout-dev/uat/prod)"]
         end
         CNPG --> DB
         Flux --> HR
     end
-    GitOps["github.com/duynhlab/gitops-poc"]
+    GitOps["github.com/duynhlab/gitops"]
     Flux -->|"sync clusters/kind (1m)"| GitOps
     BS -->|"scaffolder PRs"| GitOps
 ```
@@ -40,7 +40,7 @@ flowchart TD
 ## Prerequisites
 
 Docker, Kind, kubectl, Helm v3+, helmfile v1+, Node 22/24, `gh` CLI authenticated
-with an account that can open PRs against `duynhlab/gitops-poc`.
+with an account that can open PRs against `duynhlab/gitops`.
 
 ## Quick start
 

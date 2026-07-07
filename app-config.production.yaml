@@ -43,7 +43,7 @@ catalog:
           branch: main
           repository: gitops
         schedule:
-          frequency: { minutes: 1 }
+          frequency: { minutes: 5 }
           timeout: { minutes: 3 }
   locations:
     - type: file

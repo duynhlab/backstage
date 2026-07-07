@@ -1,8 +1,4 @@
-{%- if values.ciManaged %}
-# dev — auto-deployed by service CI on every merge to main.
-{%- else %}
-# ${{ values.environment }} — promoted via Backstage pull requests reviewed by DevOps/SRE.
-{%- endif %}
+# ${{ 'dev — auto-deployed by service CI on every merge to main' if values.ciManaged else (values.environment + ' — promoted via Backstage pull requests reviewed by DevOps/SRE') }}.
 # This file is the source of truth for ${{ values.serviceName }}'s runtime config in ${{ values.environment }}.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -12,14 +8,14 @@ spec:
   values:
     replicaCount: ${{ values.replicas }}
     image:
-      tag: "${{ values.imageTag }}"
+      tag: ${{ values.imageTag | dump }}
     env:
       - name: SERVICE_NAME
         value: "${{ values.serviceName }}"
       - name: PORT
         value: "8080"
       - name: VERSION
-        value: "${{ values.imageTag }}"
+        value: ${{ values.imageTag | dump }}
       - name: ENV
         value: "${{ values.appEnv }}"
       - name: LOG_LEVEL

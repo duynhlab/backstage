@@ -2,7 +2,7 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: ${{ values.serviceName }}
-  description: ${{ values.description }}
+  description: ${{ values.description | dump }}
   annotations:
     # Kubernetes tab: match workload labels from the mop chart (all 3 envs)
     backstage.io/kubernetes-label-selector: app.kubernetes.io/name=${{ values.serviceName }}
@@ -20,5 +20,5 @@ metadata:
 spec:
   type: service
   lifecycle: production
-  owner: ${{ values.owner }}
+  owner: ${{ values.owner | dump }}
   system: duynhlab-ecommerce

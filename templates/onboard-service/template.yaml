@@ -30,14 +30,17 @@ spec:
         description:
           title: Description
           type: string
+          maxLength: 200
           default: A duynhlab platform service
         owner:
           title: Owner
           type: string
           description: Team that owns this service
+          pattern: '^([a-zA-Z0-9-]+:)?([a-zA-Z0-9-]+/)?[a-zA-Z0-9-]{1,63}$'
           default: platform-team
           ui:field: OwnerPicker
           ui:options:
+            allowArbitraryValues: false
             catalogFilter:
               kind: Group
 
@@ -49,11 +52,14 @@ spec:
           title: Image repository
           type: string
           description: Leave empty for the org convention ghcr.io/duynhlab/<name>-service/<name>-service
+          pattern: '^$|^[a-z0-9]+([._/-][a-z0-9]+)*$'
+          maxLength: 200
           default: ''
         imageTag:
           title: Initial image tag
           type: string
           description: Immutable tag from CI (e.g. sha-abc1234 or 1.2.3)
+          pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$'
 
     - title: Replicas per environment
       properties:

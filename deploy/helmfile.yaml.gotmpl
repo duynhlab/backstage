@@ -47,6 +47,19 @@ releases:
     chart: ./charts/backstage-db
     needs:
       - cnpg-system/cloudnative-pg
+    hooks:
+      # helm wait can't track CR readiness — block until CNPG provisions the
+      # cluster and its backstage-db-app secret, so backstage starts clean.
+      - events: ["postsync"]
+        showlogs: true
+        command: kubectl
+        args:
+          - wait
+          - --for=condition=Ready
+          - cluster/backstage-db
+          - -n
+          - backstage
+          - --timeout=300s
 
   # Backstage portal (image built locally and loaded into Kind)
   - name: backstage

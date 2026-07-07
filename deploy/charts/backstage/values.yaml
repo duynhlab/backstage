@@ -10,7 +10,8 @@ github:
   token: ""
 
 db:
-  host: backstage-db-rw.backstage.svc.cluster.local
+  # Defaults to backstage-db-rw.<release namespace>.svc.cluster.local
+  host: ""
   port: "5432"
   # CNPG auto-generated app credentials secret
   secretName: backstage-db-app

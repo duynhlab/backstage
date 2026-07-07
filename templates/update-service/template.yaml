@@ -27,8 +27,11 @@ spec:
           title: Service
           type: string
           description: Pick the service to update
+          # Tight pattern — the name feeds file paths in the gitops PR
+          pattern: '^component:default/[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$'
           ui:field: EntityPicker
           ui:options:
+            allowArbitraryValues: false
             catalogFilter:
               kind: Component
               spec.type: service
@@ -56,6 +59,7 @@ spec:
           title: Image tag
           type: string
           description: Immutable tag from CI (e.g. sha-abc1234 or 1.2.3)
+          pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$'
           ui:autofocus: true
         replicas:
           title: Replicas
