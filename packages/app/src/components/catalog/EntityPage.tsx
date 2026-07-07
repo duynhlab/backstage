@@ -65,6 +65,11 @@ import {
   EntityFluxOCIRepositoriesCard,
 } from '@backstage-community/plugin-flux';
 
+import {
+  EntityGithubActionsContent,
+  isGithubActionsAvailable,
+} from '@backstage-community/plugin-github-actions';
+
 const techdocsContent = (
   <EntityTechdocsContent>
     <TechDocsAddons>
@@ -74,16 +79,12 @@ const techdocsContent = (
 );
 
 const cicdContent = (
-  // This is an example of how you can implement your company's logic in entity page.
-  // You can for example enforce that all components of type 'service' should use GitHubActions
+  // GitHub Actions runs for entities carrying the github.com/project-slug annotation
   <EntitySwitch>
-    {/*
-      Here you can add support for different CI/CD services, for example
-      using @backstage-community/plugin-github-actions as follows:
-      <EntitySwitch.Case if={isGithubActionsAvailable}>
-        <EntityGithubActionsContent />
-      </EntitySwitch.Case>
-     */}
+    <EntitySwitch.Case if={isGithubActionsAvailable}>
+      <EntityGithubActionsContent />
+    </EntitySwitch.Case>
+
     <EntitySwitch.Case>
       <EmptyState
         title="No CI/CD available for this entity"

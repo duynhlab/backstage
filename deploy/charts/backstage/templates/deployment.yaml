@@ -14,7 +14,8 @@ spec:
       labels:
         app.kubernetes.io/name: backstage
       annotations:
-        checksum/github-secret: {{ .Values.github.token | sha256sum }}
+        # Roll pods when any credential in the backstage-github secret rotates
+        checksum/github-secret: {{ printf "%s%s%s" .Values.github.token .Values.githubAuth.clientId .Values.githubAuth.clientSecret | sha256sum }}
     spec:
       serviceAccountName: backstage
       securityContext:
@@ -30,10 +31,33 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
+          {{- if .Values.githubAuth.enabled }}
+          command: ["node"]
+          args:
+            - packages/backend
+            - --config
+            - app-config.yaml
+            - --config
+            - app-config.production.yaml
+            - --config
+            - app-config.github-auth.yaml
+          {{- end }}
           ports:
             - containerPort: 7007
               name: http
           env:
+            {{- if .Values.githubAuth.enabled }}
+            - name: AUTH_GITHUB_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-github
+                  key: authClientId
+            - name: AUTH_GITHUB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-github
+                  key: authClientSecret
+            {{- end }}
             - name: POSTGRES_HOST
               value: {{ .Values.db.host | default (printf "backstage-db-rw.%s.svc.cluster.local" .Release.Namespace) }}
             - name: POSTGRES_PORT

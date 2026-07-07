@@ -123,8 +123,30 @@ See [deploy/README.md](deploy/README.md) for details.
 | Software Catalog | Service registry — entities discovered from `duynhlab/gitops` `catalog/*.yaml` |
 | Kubernetes | Pods/logs across all environments (label selector `app.kubernetes.io/name=<svc>`) |
 | Flux (`@backstage-community/plugin-flux`) | HelmRelease status per env, Sync/Suspend |
+| GitHub Actions (`@backstage-community/plugin-github-actions`) | **CI/CD tab** — workflow runs of the repo in `github.com/project-slug` |
 | Scaffolder | `onboard-service`, `update-service` templates (PR-based self-service) |
 | TechDocs, Search, Notifications | Docs, full-text search, signals |
+
+### CI/CD tab (GitHub Actions)
+
+The CI/CD tab activates for any entity with the `github.com/project-slug`
+annotation (the onboarding template sets it). The plugin calls the GitHub API
+as the viewer via an OAuth popup, which needs a **GitHub OAuth App**:
+
+1. GitHub → org **duynhlab** → Settings → Developer settings → OAuth Apps → New:
+   - Homepage URL: `http://localhost:7007`
+   - Authorization callback URL: `http://localhost:7007/api/auth/github/handler/frame`
+2. Export the credentials and redeploy:
+
+```bash
+export AUTH_GITHUB_CLIENT_ID=<client id>
+export AUTH_GITHUB_CLIENT_SECRET=<client secret>
+./deploy/setup.sh   # or: GITHUB_TOKEN=$(gh auth token) helmfile -f deploy/helmfile.yaml.gotmpl apply
+```
+
+Without the OAuth App the tab renders but the popup sign-in fails — everything
+else keeps working (`auth.providers.github` is only loaded when the
+credentials are present, via `app-config.github-auth.yaml`).
 
 ## Project Structure
 
@@ -155,6 +177,7 @@ backstage/
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `GITHUB_TOKEN` | Yes | GitHub PAT with `repo` scope (scaffolder PRs + catalog discovery). `deploy/setup.sh` takes it from `gh auth token`. |
+| `AUTH_GITHUB_CLIENT_ID` / `AUTH_GITHUB_CLIENT_SECRET` | Optional | GitHub OAuth App for the CI/CD tab popup — enables `githubAuth` in the chart when exported at helmfile time. |
 | `POSTGRES_*` | In-cluster | Injected by the `backstage` chart from the CNPG `backstage-db-app` secret. |
 
 ## Related Repositories

@@ -70,3 +70,9 @@ releases:
     values:
       - github:
           token: {{ requiredEnv "GITHUB_TOKEN" | quote }}
+        # Optional GitHub OAuth App for the CI/CD tab popup — activates when
+        # AUTH_GITHUB_CLIENT_ID / AUTH_GITHUB_CLIENT_SECRET are exported.
+        githubAuth:
+          enabled: {{ if env "AUTH_GITHUB_CLIENT_ID" }}true{{ else }}false{{ end }}
+          clientId: {{ env "AUTH_GITHUB_CLIENT_ID" | quote }}
+          clientSecret: {{ env "AUTH_GITHUB_CLIENT_SECRET" | quote }}

@@ -9,6 +9,13 @@ github:
   # and by the catalog GitHub provider. Set via helmfile from env.
   token: ""
 
+# GitHub OAuth App for the CI/CD tab (GitHub Actions plugin) — the viewer
+# authorizes via popup. Optional: leave disabled until an OAuth App exists.
+githubAuth:
+  enabled: false
+  clientId: ""
+  clientSecret: ""
+
 db:
   # Defaults to backstage-db-rw.<release namespace>.svc.cluster.local
   host: ""

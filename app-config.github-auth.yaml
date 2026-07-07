@@ -1,0 +1,18 @@
+# Loaded only when the backstage chart is deployed with githubAuth.enabled=true
+# (see deploy/charts/backstage). Enables the GitHub OAuth popup used by the
+# CI/CD tab (GitHub Actions plugin) to call the GitHub API as the viewer.
+#
+# Create the OAuth App under the duynhlab org (Settings → Developer settings →
+# OAuth Apps). GitHub validates a single callback URL per app, so use one app
+# per deployment:
+#   Homepage URL:               <backend baseUrl>            (Kind: http://localhost:7007)
+#   Authorization callback URL: <backend baseUrl>/api/auth/github/handler/frame
+auth:
+  providers:
+    github:
+      # Provider config is looked up at auth.providers.github.<auth.environment>,
+      # which defaults to "development" (independent of NODE_ENV) — no config
+      # sets auth.environment, so this key is used in every deployment.
+      development:
+        clientId: ${AUTH_GITHUB_CLIENT_ID}
+        clientSecret: ${AUTH_GITHUB_CLIENT_SECRET}
