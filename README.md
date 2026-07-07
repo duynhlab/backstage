@@ -205,6 +205,11 @@ All catalog entities live in `catalog/` (single-repo approach). Configured in `a
 Each component maps to a HelmRelease via the `backstage.io/kubernetes-id` annotation —
 the 9 microservices live in `duynhlab/homelab`, POC self-service services in `duynhlab/gitops-poc`.
 
+### Onboarding
+
+See [docs/onboarding.md](docs/onboarding.md) — the dev-facing guide for
+self-service onboarding/updating services, plus the DevOps/SRE review checklist.
+
 ### Flux Integration
 
 See [docs/flux-integration.md](docs/flux-integration.md) for the full dev team guide including:
