@@ -1,164 +1,107 @@
 # Deployment Guide
 
-Production-ready deployment of Backstage + Flux Operator on Kubernetes.
+Everything is declared in **one helmfile** and installed into a local **Kind** cluster.
 
-## Architecture
+## Stack
+
+| Release | Chart | Namespace | Purpose |
+|---------|-------|-----------|---------|
+| flux-operator | `oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator` | flux-system | Manages the Flux distribution |
+| flux | `oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance` | flux-system | Installs Flux controllers, syncs [duynhlab/gitops-poc](https://github.com/duynhlab/gitops-poc) (`clusters/kind`) |
+| cloudnative-pg | `cnpg/cloudnative-pg` | cnpg-system | PostgreSQL operator |
+| backstage-db | `./charts/backstage-db` (local) | backstage | CNPG `Cluster` CR — PostgreSQL for Backstage |
+| backstage | `./charts/backstage` (local) | backstage | The portal itself (locally built image) |
 
 ```mermaid
 flowchart TD
-    subgraph cluster ["Kubernetes Cluster"]
+    subgraph kind ["Kind cluster (backstage-dev)"]
         subgraph nsBackstage ["namespace: backstage"]
-            PG["PostgreSQL"]
-            BS["Backstage\n(port 7007)"]
-            BS --> PG
+            DB["CNPG Cluster backstage-db\n(secret: backstage-db-app)"]
+            BS["Backstage :7007\n(NodePort 30007 → host 7007)"]
+            BS --> DB
+        end
+        subgraph nsCnpg ["namespace: cnpg-system"]
+            CNPG["cloudnative-pg operator"]
         end
         subgraph nsFlux ["namespace: flux-system"]
-            FluxOp["Flux Operator"]
-            SrcCtrl["source-controller"]
-            HelmCtrl["helm-controller"]
-            KustCtrl["kustomize-controller"]
-            FluxOp --> SrcCtrl
-            FluxOp --> HelmCtrl
-            FluxOp --> KustCtrl
+            FluxOp["flux-operator"] --> Flux["FluxInstance\n(source/kustomize/helm/notification)"]
         end
-        subgraph nsServices ["per-service namespaces"]
-            HR["HelmReleases\n(auth, user, product, cart,\norder, review, notification,\nshipping, frontend)"]
+        subgraph apps ["per-service namespaces"]
+            HR["HelmReleases (demo, ...)\nnginx chart from gitops-poc"]
         end
-        BS -->|"RBAC"| nsFlux
-        BS -->|"RBAC"| nsServices
-        HelmCtrl --> HR
+        CNPG --> DB
+        Flux --> HR
     end
+    GitOps["github.com/duynhlab/gitops-poc"]
+    Flux -->|"sync clusters/kind (1m)"| GitOps
+    BS -->|"scaffolder PRs"| GitOps
 ```
 
 ## Prerequisites
 
-- Docker
-- Kind (v0.20+)
-- Helm (v3+)
-- kubectl
+Docker, Kind, kubectl, Helm v3+, helmfile v1+, Node 22/24, `gh` CLI authenticated
+with an account that can open PRs against `duynhlab/gitops-poc`.
 
-## Quick Start (Kind)
+## Quick start
 
 ```bash
-# One-command setup
-./deploy/overlays/kind/setup.sh
+./deploy/setup.sh
+# Backstage at http://localhost:7007 (guest sign-in)
 ```
 
-Or step by step:
+The script: creates the Kind cluster → builds + loads the Backstage image →
+`helmfile apply` (uses `GITHUB_TOKEN` from env, falling back to `gh auth token`).
 
-### 1. Create Kind Cluster
+Already built the image? `SKIP_BUILD=1 ./deploy/setup.sh`
 
-```bash
-kind create cluster --config deploy/overlays/kind/kind-config.yaml
-```
-
-### 2. Deploy PostgreSQL
+Manual equivalent:
 
 ```bash
-helm install postgresql oci://registry-1.docker.io/bitnamicharts/postgresql \
-  --namespace backstage --create-namespace \
-  --set auth.postgresPassword=backstage \
-  --set auth.database=backstage
-```
-
-### 3. Install Flux Operator
-
-```bash
-helm install flux-operator \
-  oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
-  --namespace flux-system --create-namespace
-
-kubectl apply -f deploy/flux/flux-instance.yaml
-kubectl apply -f deploy/flux/rbac.yaml
-```
-
-### 4. Build and Load Backstage Image
-
-```bash
-corepack yarn install
-corepack yarn tsc
-corepack yarn build:backend
-corepack yarn build-image
-kind load docker-image backstage --name backstage-dev
-```
-
-### 5. Create Secrets
-
-```bash
-cp deploy/base/secret.yaml.example deploy/base/secret.yaml
-# Edit deploy/base/secret.yaml with your GITHUB_TOKEN
-kubectl apply -f deploy/base/secret.yaml
-```
-
-### 6. Deploy Backstage
-
-```bash
-kubectl apply -k deploy/base/
-```
-
-### 7. Access Backstage
-
-```bash
-kubectl port-forward -n backstage svc/backstage 7007:7007
-# Open http://localhost:7007
+kind create cluster --config deploy/kind-config.yaml
+corepack yarn install && corepack yarn tsc && corepack yarn build:backend && corepack yarn build-image
+kind load docker-image backstage:latest --name backstage-dev
+GITHUB_TOKEN=$(gh auth token) helmfile -f deploy/helmfile.yaml.gotmpl apply
 ```
 
 ## Verify
 
 ```bash
-# Check all pods
 kubectl get pods -A
-
-# Check Flux status
-kubectl -n flux-system get fluxinstance
-kubectl -n flux-system get pods
-
-# Check Backstage
-kubectl -n backstage get pods
-kubectl -n backstage logs deployment/backstage --tail=20
-
-# Check HelmReleases
-kubectl get helmrelease -A
+kubectl -n flux-system get fluxinstance,gitrepository,kustomization
+kubectl -n backstage get cluster            # CNPG: "Cluster in healthy state"
+kubectl get helmrelease -A                  # demo (+ onboarded services)
+curl -s http://localhost:7007/healthcheck
 ```
 
-## File Structure
+## File structure
 
 ```
 deploy/
-├── overlays/
-│   └── kind/
-│       ├── kind-config.yaml       # Kind cluster with NodePort 30007
-│       └── setup.sh               # One-command full setup
-├── base/
-│   ├── kustomization.yaml         # Kustomize base
-│   ├── namespace.yaml             # backstage namespace
-│   ├── serviceaccount.yaml        # backstage SA (used for K8s/Flux RBAC)
-│   ├── deployment.yaml            # Backstage pod with PostgreSQL env vars
-│   ├── service.yaml               # NodePort service on 30007
-│   └── secret.yaml.example        # Template for GITHUB_TOKEN and PG password
-└── flux/
-    ├── flux-instance.yaml         # FluxInstance CRD (installs Flux controllers)
-    └── rbac.yaml                  # RBAC: flux-view + patch-flux-resources
+├── helmfile.yaml.gotmpl     # The whole stack, declaratively
+├── kind-config.yaml         # Kind cluster, NodePort 30007 → host 7007
+├── setup.sh                 # One-command bootstrap
+└── charts/
+    ├── backstage/           # Deployment, Service, SA, RBAC, github-token Secret
+    └── backstage-db/        # CNPG Cluster CR (db: backstage, owner has CREATEDB)
 ```
 
-## RBAC Explained
+## RBAC (chart `deploy/charts/backstage`)
 
 | ClusterRole | Purpose | Verbs |
 |-------------|---------|-------|
-| `flux-view-flux-system` | Read Flux CRDs (created by Flux) | get, list, watch |
-| `backstage-flux-patch` | Sync/suspend HelmReleases, Kustomizations | patch |
+| `backstage-k8s-read` | Kubernetes plugin (pods, logs, deployments, …) | get, list, watch |
+| `flux-view-flux-system` (created by Flux) | Read Flux CRDs | get, list, watch |
+| `backstage-flux-patch` | Flux plugin Sync/Suspend buttons | patch |
 
-Both are bound to the `backstage` ServiceAccount in the `backstage` namespace.
+## Iterating on the Backstage app
 
-## Production Considerations
+```bash
+corepack yarn tsc && corepack yarn build:backend && corepack yarn build-image
+kind load docker-image backstage:latest --name backstage-dev
+kubectl -n backstage rollout restart deployment/backstage
+```
 
-- Replace Kind with production cluster (EKS, GKE, AKS, etc.)
-- Use external PostgreSQL (RDS, Cloud SQL, etc.)
-- Configure proper TLS/ingress for Backstage
-- Replace guest auth with GitHub/OIDC auth provider
-- Use external secret management (Vault, External Secrets Operator)
-- Set proper resource limits in deployment.yaml
-- Enable PostgreSQL backups
+Template-only changes also require this loop (templates are baked into the image).
 
 ## Teardown
 

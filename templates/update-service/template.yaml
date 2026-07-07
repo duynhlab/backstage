@@ -1,0 +1,113 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: update-service
+  title: Update Service (image / env / replicas)
+  description: |
+    Self-service update: change the image tag, replicas or environment
+    variables of an onboarded service. Opens a pull request to gitops-poc —
+    DevOps/SRE review and merge, Flux rolls out the change.
+  tags:
+    - gitops
+    - flux
+    - deploy
+spec:
+  owner: platform-team
+  type: deployment
+
+  parameters:
+    - title: Service
+      required:
+        - serviceRef
+      properties:
+        serviceRef:
+          title: Service
+          type: string
+          description: Pick the service to update
+          ui:field: EntityPicker
+          ui:options:
+            catalogFilter:
+              kind: Component
+              spec.type: service
+            defaultKind: Component
+
+    - title: Desired state
+      description: |
+        The form below is the full desired state of the service — it replaces
+        the current values in gitops-poc.
+      required:
+        - imageTag
+        - replicas
+        - appEnv
+      properties:
+        imageRepository:
+          title: Image repository
+          type: string
+          default: nginx
+        imageTag:
+          title: Image tag
+          type: string
+          default: 1.29-alpine
+          ui:autofocus: true
+        replicas:
+          title: Replicas
+          type: integer
+          default: 1
+          minimum: 1
+          maximum: 5
+        appEnv:
+          title: Environment (APP_ENV)
+          type: string
+          enum:
+            - dev
+            - staging
+            - production
+          default: dev
+        message:
+          title: Message (APP_MESSAGE)
+          type: string
+          default: Hello from Backstage self-service
+
+  steps:
+    - id: fetch
+      name: Render updated HelmRelease
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: .
+        values:
+          serviceName: ${{ parameters.serviceRef | parseEntityRef | pick('name') }}
+          imageRepository: ${{ parameters.imageRepository }}
+          imageTag: ${{ parameters.imageTag }}
+          replicas: ${{ parameters.replicas }}
+          appEnv: ${{ parameters.appEnv }}
+          message: ${{ parameters.message }}
+
+    - id: pr
+      name: Open pull request to gitops-poc
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=duynhlab&repo=gitops-poc
+        branchName: update-${{ parameters.serviceRef | parseEntityRef | pick('name') }}
+        title: 'chore: update ${{ parameters.serviceRef | parseEntityRef | pick("name") }} → ${{ parameters.imageRepository }}:${{ parameters.imageTag }}'
+        update: true
+        description: |
+          ## Update `${{ parameters.serviceRef | parseEntityRef | pick('name') }}`
+
+          Created from the Backstage **Update Service** template.
+
+          | Setting | Value |
+          |---------|-------|
+          | Image | `${{ parameters.imageRepository }}:${{ parameters.imageTag }}` |
+          | Replicas | `${{ parameters.replicas }}` |
+          | APP_ENV | `${{ parameters.appEnv }}` |
+          | APP_MESSAGE | `${{ parameters.message }}` |
+
+          After merge, Flux rolls out the change within ~1 minute.
+
+  output:
+    links:
+      - title: Pull Request (needs DevOps/SRE approval)
+        url: ${{ steps['pr'].output.remoteUrl }}
+      - title: Service in catalog
+        entityRef: ${{ parameters.serviceRef }}

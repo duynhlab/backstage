@@ -1,0 +1,59 @@
+# Full platform stack for the Kind POC.
+# Usage: GITHUB_TOKEN=$(gh auth token) helmfile -f deploy/helmfile.yaml.gotmpl apply
+repositories:
+  - name: cnpg
+    url: https://cloudnative-pg.github.io/charts
+
+helmDefaults:
+  wait: true
+  timeout: 600
+  createNamespace: true
+
+releases:
+  # Flux Operator — manages the Flux distribution lifecycle
+  - name: flux-operator
+    namespace: flux-system
+    chart: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator
+
+  # FluxInstance — installs Flux controllers and syncs the gitops-poc repo
+  - name: flux
+    namespace: flux-system
+    chart: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance
+    needs:
+      - flux-system/flux-operator
+    values:
+      - instance:
+          distribution:
+            version: "2.x"
+            registry: ghcr.io/fluxcd
+          cluster:
+            type: kubernetes
+            networkPolicy: true
+          sync:
+            kind: GitRepository
+            url: https://github.com/duynhlab/gitops-poc
+            ref: refs/heads/main
+            path: clusters/kind
+            interval: 1m
+
+  # CloudNativePG operator
+  - name: cloudnative-pg
+    namespace: cnpg-system
+    chart: cnpg/cloudnative-pg
+
+  # PostgreSQL cluster for Backstage (CNPG Cluster CR)
+  - name: backstage-db
+    namespace: backstage
+    chart: ./charts/backstage-db
+    needs:
+      - cnpg-system/cloudnative-pg
+
+  # Backstage portal (image built locally and loaded into Kind)
+  - name: backstage
+    namespace: backstage
+    chart: ./charts/backstage
+    needs:
+      - backstage/backstage-db
+    values:
+      - github:
+          token: {{ requiredEnv "GITHUB_TOKEN" | quote }}

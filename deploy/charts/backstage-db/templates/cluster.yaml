@@ -1,0 +1,15 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: backstage-db
+spec:
+  instances: {{ .Values.instances }}
+  storage:
+    size: {{ .Values.storageSize }}
+  bootstrap:
+    initdb:
+      database: backstage
+      owner: backstage
+      postInitSQL:
+        # Backstage creates one database per plugin at startup
+        - ALTER ROLE backstage CREATEDB;

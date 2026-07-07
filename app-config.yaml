@@ -43,6 +43,18 @@ catalog:
     pullRequestBranchName: backstage-integration
   rules:
     - allow: [Component, System, API, Resource, Location, Template, Group, User]
+  # Auto-discover services onboarded through the self-service templates
+  providers:
+    github:
+      gitopsPoc:
+        organization: duynhlab
+        catalogPath: /catalog/*.yaml
+        filters:
+          branch: main
+          repository: gitops-poc
+        schedule:
+          frequency: { minutes: 1 }
+          timeout: { minutes: 3 }
   locations:
     # -- Catalog entities (single repo, organized by kind) --
     - type: file
@@ -70,9 +82,13 @@ catalog:
       target: ../../catalog/org/platform-team.yaml
       rules:
         - allow: [User, Group]
-    # -- Deploy Service Template --
+    # -- Self-service Templates --
     - type: file
-      target: ../../templates/deploy-service/template.yaml
+      target: ../../templates/onboard-service/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ../../templates/update-service/template.yaml
       rules:
         - allow: [Template]
     # -- Backstage default examples --

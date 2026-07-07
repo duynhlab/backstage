@@ -1,0 +1,126 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: onboard-service
+  title: Onboard New Service
+  description: |
+    Self-service onboarding: adds your service (nginx-based) to the gitops-poc
+    repo via a pull request. DevOps/SRE review and merge — Flux deploys it
+    automatically and the service appears in the catalog.
+  tags:
+    - gitops
+    - flux
+    - onboarding
+spec:
+  owner: platform-team
+  type: service
+
+  parameters:
+    - title: Service details
+      required:
+        - serviceName
+      properties:
+        serviceName:
+          title: Service name
+          type: string
+          pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
+          maxLength: 30
+          description: Lowercase DNS-safe name. Becomes the namespace and HelmRelease name.
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          default: A service onboarded via Backstage self-service
+        owner:
+          title: Owner
+          type: string
+          description: Team that owns this service
+          default: platform-team
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: Group
+
+    - title: Runtime configuration
+      required:
+        - imageTag
+        - replicas
+        - appEnv
+      properties:
+        imageRepository:
+          title: Image repository
+          type: string
+          default: nginx
+        imageTag:
+          title: Image tag
+          type: string
+          default: 1.29-alpine
+        replicas:
+          title: Replicas
+          type: integer
+          default: 1
+          minimum: 1
+          maximum: 5
+        appEnv:
+          title: Environment (APP_ENV)
+          type: string
+          enum:
+            - dev
+            - staging
+            - production
+          default: dev
+        message:
+          title: Message (APP_MESSAGE)
+          type: string
+          default: Hello from Backstage self-service
+
+  steps:
+    - id: fetch
+      name: Render GitOps manifests
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: .
+        values:
+          serviceName: ${{ parameters.serviceName }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          imageRepository: ${{ parameters.imageRepository }}
+          imageTag: ${{ parameters.imageTag }}
+          replicas: ${{ parameters.replicas }}
+          appEnv: ${{ parameters.appEnv }}
+          message: ${{ parameters.message }}
+
+    - id: pr
+      name: Open pull request to gitops-poc
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=duynhlab&repo=gitops-poc
+        branchName: onboard-${{ parameters.serviceName }}
+        title: 'feat: onboard service ${{ parameters.serviceName }}'
+        update: true
+        description: |
+          ## Onboard `${{ parameters.serviceName }}`
+
+          Created from the Backstage **Onboard New Service** template.
+
+          | Setting | Value |
+          |---------|-------|
+          | Image | `${{ parameters.imageRepository }}:${{ parameters.imageTag }}` |
+          | Replicas | `${{ parameters.replicas }}` |
+          | APP_ENV | `${{ parameters.appEnv }}` |
+          | Owner | `${{ parameters.owner }}` |
+
+          After merge, Flux reconciles within ~1 minute and the service appears
+          in the Backstage catalog automatically.
+
+  output:
+    links:
+      - title: Pull Request (needs DevOps/SRE approval)
+        url: ${{ steps['pr'].output.remoteUrl }}
+    text:
+      - title: Next steps
+        content: |
+          1. DevOps/SRE review and merge the PR
+          2. Flux deploys the service into namespace `${{ parameters.serviceName }}`
+          3. The service appears in the Backstage catalog within a few minutes

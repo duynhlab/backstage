@@ -2,10 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backstage
-  namespace: backstage
   labels:
     app.kubernetes.io/name: backstage
-    app.kubernetes.io/part-of: backstage
 spec:
   replicas: 1
   selector:
@@ -15,37 +13,41 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: backstage
-        app.kubernetes.io/part-of: backstage
+      annotations:
+        checksum/github-secret: {{ .Values.github.token | sha256sum }}
     spec:
       serviceAccountName: backstage
       containers:
         - name: backstage
-          image: backstage:latest
-          imagePullPolicy: Never
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 7007
               name: http
           env:
             - name: POSTGRES_HOST
-              value: postgresql.backstage.svc.cluster.local
+              value: {{ .Values.db.host }}
             - name: POSTGRES_PORT
-              value: "5432"
+              value: {{ .Values.db.port | quote }}
             - name: POSTGRES_USER
-              value: postgres
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.db.secretName }}
+                  key: username
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: backstage-secrets
-                  key: POSTGRES_PASSWORD
+                  name: {{ .Values.db.secretName }}
+                  key: password
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: backstage-secrets
-                  key: GITHUB_TOKEN
+                  name: backstage-github
+                  key: token
             - name: APP_BASE_URL
-              value: "http://localhost:7007"
+              value: {{ .Values.baseUrl }}
             - name: BACKEND_BASE_URL
-              value: "http://localhost:7007"
+              value: {{ .Values.baseUrl }}
           readinessProbe:
             httpGet:
               path: /healthcheck
@@ -59,9 +61,4 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 30
           resources:
-            requests:
-              cpu: 250m
-              memory: 512Mi
-            limits:
-              cpu: 1000m
-              memory: 1Gi
+            {{- toYaml .Values.resources | nindent 12 }}

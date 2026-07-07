@@ -1,0 +1,29 @@
+image:
+  repository: backstage
+  tag: latest
+  # Image is built locally and loaded into Kind, never pulled
+  pullPolicy: Never
+
+github:
+  # GitHub PAT with repo scope — used by scaffolder to open PRs
+  # and by the catalog GitHub provider. Set via helmfile from env.
+  token: ""
+
+db:
+  host: backstage-db-rw.backstage.svc.cluster.local
+  port: "5432"
+  # CNPG auto-generated app credentials secret
+  secretName: backstage-db-app
+
+baseUrl: http://localhost:7007
+
+service:
+  nodePort: 30007
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi

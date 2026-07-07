@@ -1,0 +1,17 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: ${{ values.serviceName }}
+  description: ${{ values.description }}
+  annotations:
+    backstage.io/kubernetes-id: ${{ values.serviceName }}
+    backstage.io/kubernetes-namespace: ${{ values.serviceName }}
+    github.com/project-slug: duynhlab/gitops-poc
+  tags:
+    - poc
+    - self-service
+spec:
+  type: service
+  lifecycle: experimental
+  owner: ${{ values.owner }}
+  system: duynhlab-ecommerce

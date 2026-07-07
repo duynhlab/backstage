@@ -19,53 +19,54 @@ flowchart TD
         Catalog["Software Catalog"]
         FluxTab["Flux Tab\n(HelmRelease status, sync)"]
         K8sTab["Kubernetes Tab\n(pods, logs)"]
-        DeployTemplate["Deploy Template\n(self-service CD)"]
+        Templates["Self-service Templates\n(onboard-service, update-service)"]
         FluxRuntime["Flux Runtime Page"]
     end
 
-    subgraph k8sCluster ["Kubernetes Cluster"]
+    subgraph k8sCluster ["Kind Cluster (helmfile-managed)"]
         subgraph fluxSystem ["Flux Operator + Controllers"]
             FluxOp["Flux Operator"]
             SrcCtrl["source-controller"]
             HelmCtrl["helm-controller"]
         end
-        subgraph apps ["Microservice HelmReleases"]
-            HR["auth, user, product,\ncart, order, review,\nnotification, shipping, frontend"]
+        subgraph apps ["Service HelmReleases"]
+            HR["demo + services onboarded\nvia self-service PRs"]
         end
-        PG["PostgreSQL"]
+        CNPG["CloudNativePG\n(backstage-db)"]
     end
 
     subgraph github ["GitHub"]
         ServiceRepos["9 service repos\n(source code)"]
-        HomelabRepo["homelab repo\n(GitOps manifests)"]
+        GitOpsRepo["gitops-poc repo\n(charts + HelmReleases + catalog)"]
     end
 
-    DeployTemplate -->|"Creates PR"| HomelabRepo
-    SrcCtrl -->|"Watches"| HomelabRepo
+    Templates -->|"Creates PR (DevOps reviews)"| GitOpsRepo
+    SrcCtrl -->|"Watches"| GitOpsRepo
     HelmCtrl -->|"Reconciles"| HR
-    HelmCtrl -->|"Pulls images"| Registry
-    Catalog -->|"catalog entities"| backstagePortal
+    Catalog -->|"discovers catalog/*.yaml"| GitOpsRepo
     backstagePortal -->|"K8s API + RBAC"| k8sCluster
 ```
 
-## Developer Deployment Flow
+## Developer Self-Service Flow
+
+Devs onboard and update services themselves; DevOps/SRE only review and approve PRs.
 
 ```mermaid
 sequenceDiagram
     participant Dev as Developer
     participant BS as Backstage
-    participant GH as GitHub
+    participant GH as gitops-poc repo
+    participant Ops as DevOps/SRE
     participant Flux as Flux
     participant K8s as Cluster
 
-    Note over Dev: CI built image v1.2.3
-    Dev->>BS: Click "Deploy" in Catalog
-    Dev->>BS: Select service, tag, environment
-    BS->>GH: Create PR to homelab repo
-    Note over GH: PR merged
+    Dev->>BS: Fill "Onboard New Service" or "Update Service" form
+    BS->>GH: Create PR (manifests + catalog entity)
+    Ops->>GH: Review & merge (CODEOWNERS)
     Flux->>GH: Detect change (1 min)
-    Flux->>K8s: Reconcile HelmRelease
-    Dev->>BS: See green status in Flux tab
+    Flux->>K8s: Reconcile HelmRelease (nginx chart)
+    BS->>GH: Catalog provider discovers catalog/*.yaml
+    Dev->>BS: Service + green Flux status in portal
 ```
 
 ## Prerequisites
@@ -99,24 +100,19 @@ Open http://localhost:3000 in your browser. Local development uses **SQLite in-m
 
 ## Deploy to Kind Cluster (Production-like)
 
-```bash
-# One-command setup: Kind cluster + PostgreSQL + Flux Operator + Backstage
-./deploy/overlays/kind/setup.sh
-```
-
-Or step by step -- see [deploy/README.md](deploy/README.md).
+The whole stack — Flux Operator + FluxInstance (syncing
+[duynhlab/gitops-poc](https://github.com/duynhlab/gitops-poc)), CloudNativePG,
+the Backstage database (CNPG `Cluster`), and Backstage itself — is declared in
+[`deploy/helmfile.yaml.gotmpl`](deploy/helmfile.yaml.gotmpl).
 
 ```bash
-# Build and load Docker image
-corepack yarn tsc
-corepack yarn build:backend
-corepack yarn build-image
-kind load docker-image backstage --name backstage-dev
+# One command: Kind cluster + image build + helmfile apply
+./deploy/setup.sh
 
-# Access Backstage
-kubectl port-forward -n backstage svc/backstage 7007:7007
-# Open http://localhost:7007
+# Open http://localhost:7007 (Kind maps NodePort 30007 → host 7007)
 ```
+
+See [deploy/README.md](deploy/README.md) for details and the manual steps.
 
 ## Available Scripts
 
@@ -161,8 +157,9 @@ backstage/
 │   │   ├── shipping.yaml
 │   │   └── frontend.yaml
 │   └── org/platform-team.yaml      # Group + User entities
-├── templates/                      # Scaffolder templates
-│   └── deploy-service/             # Dev self-service deploy template
+├── templates/                      # Scaffolder templates (self-service via PR)
+│   ├── onboard-service/            # New service → PR to gitops-poc
+│   └── update-service/             # Change image/env/replicas → PR to gitops-poc
 ├── packages/
 │   ├── app/                        # Frontend (React)
 │   │   └── src/
@@ -174,10 +171,11 @@ backstage/
 │   └── backend/                    # Backend (Node.js)
 │       ├── src/index.ts            # Plugin registration
 │       └── Dockerfile              # Production image
-├── deploy/                         # Kubernetes deployment manifests
-│   ├── overlays/kind/              # Kind cluster config + setup script
-│   ├── base/                       # Backstage K8s resources (Kustomize base)
-│   └── flux/                       # Flux Operator + RBAC
+├── deploy/                         # Kind + helmfile deployment
+│   ├── helmfile.yaml.gotmpl        # Full stack: flux, cnpg, backstage-db, backstage
+│   ├── kind-config.yaml            # Kind cluster (NodePort 30007 → host 7007)
+│   ├── setup.sh                    # One-command bootstrap
+│   └── charts/                     # Local charts: backstage, backstage-db (CNPG)
 ├── docs/                           # Documentation
 │   └── flux-integration.md         # Dev team Flux guide
 ├── examples/                       # Backstage default examples
@@ -190,11 +188,8 @@ backstage/
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `GITHUB_TOKEN` | Yes | GitHub PAT with `repo` scope |
-| `POSTGRES_HOST` | Production | PostgreSQL host |
-| `POSTGRES_PORT` | Production | PostgreSQL port (default: 5432) |
-| `POSTGRES_USER` | Production | PostgreSQL user |
-| `POSTGRES_PASSWORD` | Production | PostgreSQL password |
+| `GITHUB_TOKEN` | Yes | GitHub PAT with `repo` scope (scaffolder PRs + catalog discovery). In the Kind deploy, `setup.sh` takes it from `gh auth token`. |
+| `POSTGRES_*` | Production | Injected automatically by the `backstage` chart from the CNPG `backstage-db-app` secret. |
 
 ### Catalog Sources
 
@@ -203,9 +198,12 @@ All catalog entities live in `catalog/` (single-repo approach). Configured in `a
 - **9 microservices**: individual YAML files in `catalog/components/`
 - **System**: `catalog/systems/ecommerce.yaml`
 - **Organization**: `catalog/org/platform-team.yaml`
-- **Software Templates**: `templates/deploy-service/template.yaml`
+- **Software Templates**: `templates/onboard-service/`, `templates/update-service/`
+- **Self-service services**: auto-discovered from `catalog/*.yaml` in
+  [duynhlab/gitops-poc](https://github.com/duynhlab/gitops-poc) (GitHub entity provider, 1m refresh)
 
-Each component maps to a HelmRelease in `duynhlab/homelab` via `backstage.io/kubernetes-id` annotation.
+Each component maps to a HelmRelease via the `backstage.io/kubernetes-id` annotation —
+the 9 microservices live in `duynhlab/homelab`, POC self-service services in `duynhlab/gitops-poc`.
 
 ### Flux Integration
 
@@ -227,6 +225,7 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) on push/PR to `main`:
 
 | Repository | Purpose |
 |------------|---------|
+| [duynhlab/gitops-poc](https://github.com/duynhlab/gitops-poc) | POC GitOps repo — self-service PRs land here (nginx chart, HelmReleases, catalog) |
 | [duynhlab/homelab](https://github.com/duynhlab/homelab) | GitOps manifests (HelmReleases, infra, Flux config) |
 | [duynhlab/auth-service](https://github.com/duynhlab/auth-service) | Auth microservice |
 | [duynhlab/user-service](https://github.com/duynhlab/user-service) | User microservice |

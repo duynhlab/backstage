@@ -149,20 +149,28 @@ Backstage reads the annotation from the catalog entity, then queries the Kuberne
 
 All services use the shared Helm chart from `oci://ghcr.io/duyhenryer/charts/mop` (OCIRepository `mop-chart-oci`).
 
-## Deploying a New Version
+## Self-Service (POC: gitops-poc repo)
 
-1. Open Backstage at `http://localhost:7007`
-2. Navigate to your service in the **Software Catalog**
-3. Click **Create...** in the sidebar
-4. Select **Deploy Service** template
-5. Fill in:
-   - **Service Name**: select your service (auth, user, product, etc.)
-   - **Image Tag**: the version to deploy (e.g. `v1.2.3`)
-   - **Environment**: dev / staging / production
-6. Click **Create**
-7. Backstage creates a PR to the `duynhlab/homelab` repo
-8. Once the PR is merged, Flux automatically deploys the new version
-9. Check the **Flux tab** on your service page to see the status
+Two templates under **Create...** in the sidebar. Both open a pull request to
+[duynhlab/gitops-poc](https://github.com/duynhlab/gitops-poc) — **DevOps/SRE review
+and merge (CODEOWNERS), devs never get direct write access**.
+
+### Onboard New Service
+
+1. Open Backstage at `http://localhost:7007` → **Create...** → **Onboard New Service**
+2. Fill in: service name, owner, image, replicas, `APP_ENV`, `APP_MESSAGE`
+3. Backstage opens a PR adding `apps/<name>/` (Namespace + HelmRelease using the
+   shared nginx chart) and `catalog/<name>.yaml`
+4. After merge: Flux deploys within ~1 minute, and the catalog provider discovers
+   the entity automatically — no manual registration
+
+### Update Service (image / env / replicas)
+
+1. **Create...** → **Update Service**
+2. Pick the service (EntityPicker), then fill in the **desired state**:
+   image tag, replicas, `APP_ENV`, `APP_MESSAGE`
+3. Backstage opens a PR replacing `apps/<name>/release.yaml`
+4. DevOps/SRE merge → Flux rolls out the change (visible on the service's landing page)
 
 ## Monitoring Flux Status
 
