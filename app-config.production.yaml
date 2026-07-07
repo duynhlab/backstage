@@ -32,39 +32,22 @@ auth:
 catalog:
   rules:
     - allow: [Component, System, API, Resource, Location, Template, Group, User]
-  # Auto-discover services onboarded through the self-service templates
+  # Services are discovered from catalog/*.yaml in the gitops repo —
+  # onboarding a service through the templates is all it takes to appear here.
   providers:
     github:
-      gitopsPoc:
+      gitops:
         organization: duynhlab
         catalogPath: /catalog/*.yaml
         filters:
           branch: main
-          repository: gitops-poc
+          repository: gitops
         schedule:
           frequency: { minutes: 1 }
           timeout: { minutes: 3 }
   locations:
     - type: file
       target: ./catalog/systems/ecommerce.yaml
-    - type: file
-      target: ./catalog/components/auth.yaml
-    - type: file
-      target: ./catalog/components/user.yaml
-    - type: file
-      target: ./catalog/components/product.yaml
-    - type: file
-      target: ./catalog/components/cart.yaml
-    - type: file
-      target: ./catalog/components/order.yaml
-    - type: file
-      target: ./catalog/components/review.yaml
-    - type: file
-      target: ./catalog/components/notification.yaml
-    - type: file
-      target: ./catalog/components/shipping.yaml
-    - type: file
-      target: ./catalog/components/frontend.yaml
     - type: file
       target: ./catalog/org/platform-team.yaml
       rules:

@@ -1,5 +1,5 @@
 apiVersion: v2
 name: backstage
-description: Backstage developer portal for the duynhlab platform POC
+description: Backstage developer portal for the duynhlab platform
 type: application
 version: 0.1.0

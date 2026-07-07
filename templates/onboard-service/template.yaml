@@ -4,9 +4,9 @@ metadata:
   name: onboard-service
   title: Onboard New Service
   description: |
-    Self-service onboarding: adds your service (nginx-based) to the gitops-poc
-    repo via a pull request. DevOps/SRE review and merge — Flux deploys it
-    automatically and the service appears in the catalog.
+    Self-service onboarding: adds a service to the gitops repo across all
+    three environments (dev / uat / prod) via one pull request. DevOps/SRE
+    review and merge — Flux deploys it and the service appears in the catalog.
   tags:
     - gitops
     - flux
@@ -25,12 +25,12 @@ spec:
           type: string
           pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
           maxLength: 30
-          description: Lowercase DNS-safe name. Becomes the namespace and HelmRelease name.
+          description: Lowercase DNS-safe name (e.g. "payment"). Namespaces become <name>-dev/uat/prod.
           ui:autofocus: true
         description:
           title: Description
           type: string
-          default: A service onboarded via Backstage self-service
+          default: A duynhlab platform service
         owner:
           title: Owner
           type: string
@@ -41,42 +41,44 @@ spec:
             catalogFilter:
               kind: Group
 
-    - title: Runtime configuration
+    - title: Image
       required:
         - imageTag
-        - replicas
-        - appEnv
       properties:
         imageRepository:
           title: Image repository
           type: string
-          default: nginx
+          description: Leave empty for the org convention ghcr.io/duynhlab/<name>-service/<name>-service
+          default: ''
         imageTag:
-          title: Image tag
+          title: Initial image tag
           type: string
-          default: 1.29-alpine
-        replicas:
-          title: Replicas
+          description: Immutable tag from CI (e.g. sha-abc1234 or 1.2.3)
+
+    - title: Replicas per environment
+      properties:
+        replicasDev:
+          title: dev replicas
           type: integer
           default: 1
           minimum: 1
           maximum: 5
-        appEnv:
-          title: Environment (APP_ENV)
-          type: string
-          enum:
-            - dev
-            - staging
-            - production
-          default: dev
-        message:
-          title: Message (APP_MESSAGE)
-          type: string
-          default: Hello from Backstage self-service
+        replicasUat:
+          title: uat replicas
+          type: integer
+          default: 2
+          minimum: 1
+          maximum: 5
+        replicasProd:
+          title: prod replicas
+          type: integer
+          default: 2
+          minimum: 1
+          maximum: 10
 
   steps:
     - id: fetch
-      name: Render GitOps manifests
+      name: Render GitOps manifests (base + dev/uat/prod + catalog)
       action: fetch:template
       input:
         url: ./skeleton
@@ -85,19 +87,19 @@ spec:
           serviceName: ${{ parameters.serviceName }}
           description: ${{ parameters.description }}
           owner: ${{ parameters.owner }}
-          imageRepository: ${{ parameters.imageRepository }}
+          imageRepository: ${{ parameters.imageRepository or ('ghcr.io/duynhlab/' + parameters.serviceName + '-service/' + parameters.serviceName + '-service') }}
           imageTag: ${{ parameters.imageTag }}
-          replicas: ${{ parameters.replicas }}
-          appEnv: ${{ parameters.appEnv }}
-          message: ${{ parameters.message }}
+          replicasDev: ${{ parameters.replicasDev }}
+          replicasUat: ${{ parameters.replicasUat }}
+          replicasProd: ${{ parameters.replicasProd }}
 
     - id: pr
-      name: Open pull request to gitops-poc
+      name: Open pull request to gitops
       action: publish:github:pull-request
       input:
-        repoUrl: github.com?owner=duynhlab&repo=gitops-poc
+        repoUrl: github.com?owner=duynhlab&repo=gitops
         branchName: onboard-${{ parameters.serviceName }}
-        title: 'feat: onboard service ${{ parameters.serviceName }}'
+        title: 'Onboard service ${{ parameters.serviceName }}'
         update: true
         description: |
           ## Onboard `${{ parameters.serviceName }}`
@@ -106,13 +108,14 @@ spec:
 
           | Setting | Value |
           |---------|-------|
-          | Image | `${{ parameters.imageRepository }}:${{ parameters.imageTag }}` |
-          | Replicas | `${{ parameters.replicas }}` |
-          | APP_ENV | `${{ parameters.appEnv }}` |
+          | Image | `${{ parameters.imageRepository or ('ghcr.io/duynhlab/' + parameters.serviceName + '-service/' + parameters.serviceName + '-service') }}:${{ parameters.imageTag }}` |
+          | Replicas | dev=${{ parameters.replicasDev }}, uat=${{ parameters.replicasUat }}, prod=${{ parameters.replicasProd }} |
           | Owner | `${{ parameters.owner }}` |
 
-          After merge, Flux reconciles within ~1 minute and the service appears
-          in the Backstage catalog automatically.
+          Adds `apps/base/${{ parameters.serviceName }}`, the three environment
+          overlays and `catalog/${{ parameters.serviceName }}.yaml`. After merge,
+          Flux deploys all three environments and the service appears in the
+          Backstage catalog automatically.
 
   output:
     links:
@@ -122,5 +125,5 @@ spec:
       - title: Next steps
         content: |
           1. DevOps/SRE review and merge the PR
-          2. Flux deploys the service into namespace `${{ parameters.serviceName }}`
+          2. Flux deploys into `${{ parameters.serviceName }}-dev/uat/prod`
           3. The service appears in the Backstage catalog within a few minutes

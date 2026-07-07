@@ -1,4 +1,4 @@
-# Full platform stack for the Kind POC.
+# Full platform stack for the Kind cluster.
 # Usage: GITHUB_TOKEN=$(gh auth token) helmfile -f deploy/helmfile.yaml.gotmpl apply
 repositories:
   - name: cnpg
@@ -15,7 +15,7 @@ releases:
     namespace: flux-system
     chart: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator
 
-  # FluxInstance — installs Flux controllers and syncs the gitops-poc repo
+  # FluxInstance — installs Flux controllers and syncs the gitops repo
   - name: flux
     namespace: flux-system
     chart: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance
@@ -31,7 +31,7 @@ releases:
             networkPolicy: true
           sync:
             kind: GitRepository
-            url: https://github.com/duynhlab/gitops-poc
+            url: https://github.com/duynhlab/gitops
             ref: refs/heads/main
             path: clusters/kind
             interval: 1m

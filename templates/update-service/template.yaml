@@ -2,23 +2,26 @@ apiVersion: scaffolder.backstage.io/v1beta3
 kind: Template
 metadata:
   name: update-service
-  title: Update Service (image / env / replicas)
+  title: Update / Promote Service
   description: |
-    Self-service update: change the image tag, replicas or environment
-    variables of an onboarded service. Opens a pull request to gitops-poc —
-    DevOps/SRE review and merge, Flux rolls out the change.
+    Change a service's image tag, replicas or log level in one environment.
+    Opens a pull request to the gitops repo — DevOps/SRE review and merge,
+    Flux rolls out the change. Promoting to uat/prod is this same template
+    pointed at the higher environment with a tag that ran in the lower one.
   tags:
     - gitops
     - flux
     - deploy
+    - promote
 spec:
   owner: platform-team
   type: deployment
 
   parameters:
-    - title: Service
+    - title: Target
       required:
         - serviceRef
+        - environment
       properties:
         serviceRef:
           title: Service
@@ -30,79 +33,83 @@ spec:
               kind: Component
               spec.type: service
             defaultKind: Component
+        environment:
+          title: Environment
+          type: string
+          description: dev is normally CI-managed — use uat/prod for promotions
+          enum:
+            - dev
+            - uat
+            - prod
+          default: uat
 
     - title: Desired state
       description: |
-        The form below is the full desired state of the service — it replaces
-        the current values in gitops-poc.
+        This form is the full desired state for the environment — it replaces
+        the current release-patch.yaml, so set every field to what you want.
       required:
         - imageTag
         - replicas
-        - appEnv
+        - logLevel
       properties:
-        imageRepository:
-          title: Image repository
-          type: string
-          default: nginx
         imageTag:
           title: Image tag
           type: string
-          default: 1.29-alpine
+          description: Immutable tag from CI (e.g. sha-abc1234 or 1.2.3)
           ui:autofocus: true
         replicas:
           title: Replicas
           type: integer
-          default: 1
+          default: 2
           minimum: 1
-          maximum: 5
-        appEnv:
-          title: Environment (APP_ENV)
+          maximum: 10
+        logLevel:
+          title: LOG_LEVEL
           type: string
           enum:
-            - dev
-            - staging
-            - production
-          default: dev
-        message:
-          title: Message (APP_MESSAGE)
-          type: string
-          default: Hello from Backstage self-service
+            - debug
+            - info
+            - warn
+            - error
+          default: info
 
   steps:
     - id: fetch
-      name: Render updated HelmRelease
+      name: Render updated release patch
       action: fetch:template
       input:
         url: ./skeleton
         targetPath: .
         values:
           serviceName: ${{ parameters.serviceRef | parseEntityRef | pick('name') }}
-          imageRepository: ${{ parameters.imageRepository }}
+          environment: ${{ parameters.environment }}
+          appEnv: ${{ 'development' if parameters.environment == 'dev' else ('staging' if parameters.environment == 'uat' else 'production') }}
+          ciManaged: ${{ parameters.environment == 'dev' }}
+          sampleRate: ${{ '1.0' if parameters.environment == 'dev' else ('0.5' if parameters.environment == 'uat' else '0.1') }}
           imageTag: ${{ parameters.imageTag }}
           replicas: ${{ parameters.replicas }}
-          appEnv: ${{ parameters.appEnv }}
-          message: ${{ parameters.message }}
+          logLevel: ${{ parameters.logLevel }}
 
     - id: pr
-      name: Open pull request to gitops-poc
+      name: Open pull request to gitops
       action: publish:github:pull-request
       input:
-        repoUrl: github.com?owner=duynhlab&repo=gitops-poc
-        branchName: update-${{ parameters.serviceRef | parseEntityRef | pick('name') }}
-        title: 'chore: update ${{ parameters.serviceRef | parseEntityRef | pick("name") }} → ${{ parameters.imageRepository }}:${{ parameters.imageTag }}'
+        repoUrl: github.com?owner=duynhlab&repo=gitops
+        branchName: update-${{ parameters.serviceRef | parseEntityRef | pick('name') }}-${{ parameters.environment }}
+        title: 'Update ${{ parameters.serviceRef | parseEntityRef | pick("name") }} ${{ parameters.environment }} to ${{ parameters.imageTag }}'
         update: true
         description: |
-          ## Update `${{ parameters.serviceRef | parseEntityRef | pick('name') }}`
+          ## Update `${{ parameters.serviceRef | parseEntityRef | pick('name') }}` — environment `${{ parameters.environment }}`
 
-          Created from the Backstage **Update Service** template.
+          Created from the Backstage **Update / Promote Service** template.
 
           | Setting | Value |
           |---------|-------|
-          | Image | `${{ parameters.imageRepository }}:${{ parameters.imageTag }}` |
+          | Image tag | `${{ parameters.imageTag }}` |
           | Replicas | `${{ parameters.replicas }}` |
-          | APP_ENV | `${{ parameters.appEnv }}` |
-          | APP_MESSAGE | `${{ parameters.message }}` |
+          | LOG_LEVEL | `${{ parameters.logLevel }}` |
 
+          Touches only `apps/${{ parameters.environment }}/${{ parameters.serviceRef | parseEntityRef | pick('name') }}/release-patch.yaml`.
           After merge, Flux rolls out the change within ~1 minute.
 
   output:

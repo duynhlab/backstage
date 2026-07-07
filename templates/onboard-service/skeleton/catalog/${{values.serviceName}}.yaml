@@ -4,14 +4,21 @@ metadata:
   name: ${{ values.serviceName }}
   description: ${{ values.description }}
   annotations:
+    # Kubernetes tab: match workload labels from the mop chart (all 3 envs)
+    backstage.io/kubernetes-label-selector: app.kubernetes.io/name=${{ values.serviceName }}
+    # Flux tab: match the backstage.io/kubernetes-id label on HelmReleases
     backstage.io/kubernetes-id: ${{ values.serviceName }}
-    backstage.io/kubernetes-namespace: ${{ values.serviceName }}
-    github.com/project-slug: duynhlab/gitops-poc
+    github.com/project-slug: duynhlab/${{ values.serviceName }}-service
+  links:
+    - url: https://github.com/duynhlab/${{ values.serviceName }}-service
+      title: Source repository
+    - url: https://github.com/duynhlab/gitops
+      title: GitOps manifests
   tags:
-    - poc
-    - self-service
+    - go
+    - microservice
 spec:
   type: service
-  lifecycle: experimental
+  lifecycle: production
   owner: ${{ values.owner }}
   system: duynhlab-ecommerce

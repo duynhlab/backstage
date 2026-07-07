@@ -34,7 +34,7 @@ backend.add(import('@backstage/plugin-catalog-backend'));
 backend.add(
   import('@backstage/plugin-catalog-backend-module-scaffolder-entity-model'),
 );
-// discovers catalog/*.yaml in the gitops-poc repo (self-service onboarded services)
+// discovers catalog/*.yaml in the gitops repo (self-service onboarded services)
 backend.add(import('@backstage/plugin-catalog-backend-module-github'));
 
 // See https://backstage.io/docs/features/software-catalog/configuration#subscribing-to-catalog-errors
