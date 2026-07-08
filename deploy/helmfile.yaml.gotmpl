@@ -14,11 +14,13 @@ releases:
   - name: flux-operator
     namespace: flux-system
     chart: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator
+    version: 0.54.0
 
   # FluxInstance — installs Flux controllers and syncs the gitops repo
   - name: flux
     namespace: flux-system
     chart: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance
+    version: 0.54.0
     needs:
       - flux-system/flux-operator
     values:
@@ -26,9 +28,19 @@ releases:
           distribution:
             version: "2.x"
             registry: ghcr.io/fluxcd
+          # Per https://fluxoperator.dev/get-started/ — source-watcher included
+          components:
+            - source-controller
+            - source-watcher
+            - kustomize-controller
+            - helm-controller
+            - notification-controller
           cluster:
             type: kubernetes
+            size: small # Kind single-node; use medium/large on real clusters
+            multitenant: false
             networkPolicy: true
+            domain: cluster.local
           sync:
             kind: GitRepository
             url: https://github.com/duynhlab/gitops

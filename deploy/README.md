@@ -73,6 +73,40 @@ kubectl get helmrelease -A                  # demo (+ onboarded services)
 curl -s http://localhost:7007/healthcheck
 ```
 
+## Flux Operator extras
+
+Flux is installed and lifecycle-managed by the
+[Flux Operator](https://fluxoperator.dev/get-started/) — the `FluxInstance` CR
+in the helmfile defines the distribution (version `2.x`, components incl.
+`source-watcher`, `cluster.size: small` for Kind) and the sync to
+`duynhlab/gitops`. Upgrading Flux = the operator reconciling a new manifest
+digest; no `flux bootstrap`.
+
+- **Status page (Web UI)** — built into the operator:
+  ```bash
+  kubectl -n flux-system port-forward svc/flux-operator 9080:9080
+  # http://localhost:9080 — pipelines, sources, reconciliation status
+  ```
+- **Cluster report**:
+  ```bash
+  kubectl -n flux-system get fluxreport/flux -o yaml
+  ```
+- **MCP server** (Agentic GitOps — lets an AI assistant inspect/debug Flux):
+  ```bash
+  brew install controlplaneio-fluxcd/tap/flux-operator-mcp
+  # or download a release binary: https://github.com/controlplaneio-fluxcd/flux-operator/releases
+  # then register `flux-operator-mcp serve` in your assistant's MCP settings
+  ```
+
+## Resuming a stopped cluster
+
+The Kind container can be stopped/started without losing state:
+
+```bash
+docker stop backstage-dev-control-plane     # stop (state kept on the container disk)
+docker start backstage-dev-control-plane    # resume — pods return in ~1-2 min
+```
+
 ## File structure
 
 ```
