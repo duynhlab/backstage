@@ -57,18 +57,36 @@ catalog:
       rules:
         - allow: [Template]
     - type: file
-      target: ./templates/update-service/template.yaml
+      target: ./templates/update-env-var/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/enable-environment/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ./templates/promote-image/template.yaml
       rules:
         - allow: [Template]
 
+# Backstage runs on the mgmt cluster; workloads live on the per-environment
+# clusters, reached with backstage-agent ServiceAccount tokens (see
+# deploy/charts/backstage-agent).
 kubernetes:
   serviceLocatorMethod:
     type: multiTenant
   clusterLocatorMethods:
     - type: config
       clusters:
-        - url: https://kubernetes.default.svc
-          name: backstage-dev
+        - url: ${K8S_DEV_URL}
+          name: dev
           authProvider: serviceAccount
+          serviceAccountToken: ${K8S_DEV_TOKEN}
+          skipTLSVerify: true
+          skipMetricsLookup: true
+        - url: ${K8S_PROD_URL}
+          name: prod
+          authProvider: serviceAccount
+          serviceAccountToken: ${K8S_PROD_TOKEN}
           skipTLSVerify: true
           skipMetricsLookup: true

@@ -1,0 +1,100 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: update-env-var
+  title: Update Env Var
+  description: |
+    Set one environment variable on a service in one environment. Fetches the
+    current values-<env>.yaml, patches just that one entry in the `env:` list
+    (nothing else in the file changes), and opens a pull request to the gitops
+    repo. staging merges freely; beta / prod-us / prod-eu require DevOps review.
+    (Setting a variable to the value it already holds yields no diff and the PR
+    step reports nothing to commit — pick a new value.)
+  tags:
+    - gitops
+    - flux
+    - config
+spec:
+  owner: platform-team
+  type: deployment
+
+  parameters:
+    - title: Target
+      required:
+        - serviceRef
+        - environment
+        - envKey
+        - envValue
+      properties:
+        serviceRef:
+          title: Service
+          type: string
+          pattern: '^component:default/[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$'
+          ui:field: EntityPicker
+          ui:options:
+            allowArbitraryValues: false
+            catalogFilter:
+              kind: Component
+              spec.type: service
+            defaultKind: Component
+        environment:
+          title: Environment
+          type: string
+          enum:
+            - staging
+            - beta
+            - prod-us
+            - prod-eu
+          default: staging
+        envKey:
+          title: Variable name
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]*$'
+          description: e.g. LOG_LEVEL, OTEL_SAMPLE_RATE
+        envValue:
+          title: Value
+          type: string
+          # No double quotes / backslashes — keeps the JSONata string literal safe
+          pattern: '^[^"\\]{0,200}$'
+
+  steps:
+    - id: fetch
+      name: Fetch current values file (into its repo path)
+      action: fetch:plain:file
+      input:
+        url: https://github.com/duynhlab/gitops/blob/main/apps/${{ parameters.environment }}/${{ parameters.serviceRef | parseEntityRef | pick('name') }}/values-${{ parameters.environment }}.yaml
+        targetPath: apps/${{ parameters.environment }}/${{ parameters.serviceRef | parseEntityRef | pick('name') }}/values-${{ parameters.environment }}.yaml
+
+    - id: patch
+      name: Patch the one env entry (in place)
+      action: roadiehq:utils:jsonata:yaml:transform
+      input:
+        path: apps/${{ parameters.environment }}/${{ parameters.serviceRef | parseEntityRef | pick('name') }}/values-${{ parameters.environment }}.yaml
+        # Drop any existing entry with this name, then append the new one —
+        # every other key in the file is left untouched.
+        expression: '$merge([$, {"env": $append([env[name != "${{ parameters.envKey }}"]], [{"name": "${{ parameters.envKey }}", "value": "${{ parameters.envValue }}"}])}])'
+
+    - id: pr
+      name: Open pull request to gitops
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=duynhlab&repo=gitops
+        branchName: env-${{ parameters.serviceRef | parseEntityRef | pick('name') }}-${{ parameters.environment }}-${{ parameters.envKey }}
+        title: 'Set ${{ parameters.envKey }} on ${{ parameters.serviceRef | parseEntityRef | pick("name") }} (${{ parameters.environment }})'
+        update: true
+        description: |
+          ## `${{ parameters.envKey }}` = `${{ parameters.envValue }}`
+
+          Service `${{ parameters.serviceRef | parseEntityRef | pick('name') }}`, environment `${{ parameters.environment }}`.
+
+          Surgical edit — only the one `env:` entry in
+          `apps/${{ parameters.environment }}/.../values-${{ parameters.environment }}.yaml`
+          changes. Merges freely on staging; beta / prod-us / prod-eu need
+          DevOps/SRE review.
+
+  output:
+    links:
+      - title: Pull Request
+        url: ${{ steps['pr'].output.remoteUrl }}
+      - title: Service in catalog
+        entityRef: ${{ parameters.serviceRef }}

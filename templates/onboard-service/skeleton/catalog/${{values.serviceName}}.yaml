@@ -4,7 +4,7 @@ metadata:
   name: ${{ values.serviceName }}
   description: ${{ values.description | dump }}
   annotations:
-    # Kubernetes tab: match workload labels from the mop chart (all 3 envs)
+    # Kubernetes tab: match workload labels from the mop chart (all environments)
     backstage.io/kubernetes-label-selector: app.kubernetes.io/name=${{ values.serviceName }}
     # Flux tab: match the backstage.io/kubernetes-id label on HelmReleases
     backstage.io/kubernetes-id: ${{ values.serviceName }}

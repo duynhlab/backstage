@@ -71,7 +71,15 @@ catalog:
       rules:
         - allow: [Template]
     - type: file
-      target: ../../templates/update-service/template.yaml
+      target: ../../templates/update-env-var/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ../../templates/enable-environment/template.yaml
+      rules:
+        - allow: [Template]
+    - type: file
+      target: ../../templates/promote-image/template.yaml
       rules:
         - allow: [Template]
 

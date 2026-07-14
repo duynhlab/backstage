@@ -1,0 +1,5 @@
+apiVersion: v2
+name: backstage-agent
+description: ServiceAccount + RBAC + long-lived token that lets the central Backstage read workloads and Flux resources on an environment cluster
+type: application
+version: 0.1.0

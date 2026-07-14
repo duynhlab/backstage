@@ -1,0 +1,27 @@
+# Per-service image scan + policy for ${{ values.serviceName }} in ${{ values.environment }}.
+# The policy matches the region-prefixed tag this environment tracks
+# (beta → main-*, prod-us → us-*, prod-eu → eu-*); the env-wide
+# ImageUpdateAutomation rewrites the marked tag and opens a reviewed PR.
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImageRepository
+metadata:
+  name: ${{ values.serviceName }}-${{ values.environment }}
+  namespace: flux-system
+spec:
+  image: ghcr.io/duynhlab/${{ values.serviceName }}-service/${{ values.serviceName }}-service
+  interval: 5m
+---
+apiVersion: image.toolkit.fluxcd.io/v1beta2
+kind: ImagePolicy
+metadata:
+  name: ${{ values.serviceName }}-${{ values.environment }}
+  namespace: flux-system
+spec:
+  imageRepositoryRef:
+    name: ${{ values.serviceName }}-${{ values.environment }}
+  filterTags:
+    pattern: '^${{ values.tagPrefix }}-(?P<ts>[0-9]+)-[a-f0-9]+$'
+    extract: '$ts'
+  policy:
+    numerical:
+      order: asc

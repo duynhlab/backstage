@@ -19,6 +19,9 @@ backend.add(import('@backstage/plugin-scaffolder-backend-module-github'));
 backend.add(
   import('@backstage/plugin-scaffolder-backend-module-notifications'),
 );
+// fs:parse/write, serialize:yaml, jsonata — used by the surgical
+// "Update / Promote" templates to edit one key in a values file in place
+backend.add(import('@roadiehq/scaffolder-backend-module-utils'));
 
 // techdocs plugin
 backend.add(import('@backstage/plugin-techdocs-backend'));

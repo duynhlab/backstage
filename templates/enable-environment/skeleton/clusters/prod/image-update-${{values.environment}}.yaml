@@ -1,0 +1,30 @@
+# Env-wide image automation writer for ${{ values.environment }} (idempotent).
+# Unlike staging (which commits to main), production environments push the
+# rewritten tag to a `flux-image-${{ values.environment }}` branch; a GitHub
+# Action opens a PR (.github/workflows/image-automation-pr.yml) so the change
+# is reviewed before it reaches main.
+apiVersion: image.toolkit.fluxcd.io/v1beta1
+kind: ImageUpdateAutomation
+metadata:
+  name: ${{ values.environment }}
+  namespace: flux-system
+spec:
+  interval: 1m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: fluxcdbot
+        email: fluxcdbot@users.noreply.github.com
+      messageTemplate: |
+        ci: update ${{ values.environment }} image to {{range .Updated.Images}}{{println .}}{{end}}
+    push:
+      branch: flux-image-${{ values.environment }}
+  update:
+    path: ./apps/${{ values.environment }}
+    strategy: Setters

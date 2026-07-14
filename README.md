@@ -28,38 +28,46 @@ flowchart TD
     end
 
     subgraph gitops ["duynhlab/gitops (DevOps-owned, CODEOWNERS)"]
-        DevEnv["apps/dev/*"]
-        UatEnv["apps/uat/*"]
-        ProdEnv["apps/prod/*"]
+        StgEnv["apps/staging/*"]
+        ProdEnv["apps/{beta,prod-us,prod-eu}/*"]
         CatalogDir["catalog/*.yaml"]
     end
 
-    subgraph cluster ["Kind cluster"]
-        Flux["Flux (operator-managed)"]
-        NS1["ns checkout-dev"]
-        NS2["ns checkout-uat"]
-        NS3["ns checkout-prod"]
-        DB["CloudNativePG\nbackstage-db"]
+    subgraph mgmt ["kind-mgmt"]
         BS["Backstage :7007"]
+        DB["CloudNativePG\nbackstage-db"]
         BS --> DB
+    end
+    subgraph devc ["kind-dev"]
+        FluxD["Flux (dev)"]
+        NS1["ns checkout-staging"]
+        FluxD --> NS1
+    end
+    subgraph prodc ["kind-prod"]
+        FluxP["Flux (prod)"]
+        NS3["ns checkout-{beta,prod-us,prod-eu}"]
+        FluxP --> NS3
     end
 
     Code --> Pipeline
     Pipeline -->|"auto-commit tag bump"| DevEnv
     Portal --> Onboard & Update
-    Onboard -->|"PR: base + 3 envs + catalog"| gitops
+    Onboard -->|"PR: base + staging + catalog"| gitops
     Update -->|"PR: one env file"| gitops
     Catalog -->|"discover 1m"| CatalogDir
-    Flux -->|"sync 1m"| gitops
-    DevEnv --> NS1
-    UatEnv --> NS2
+    FluxD -->|"sync clusters/dev (1m)"| gitops
+    FluxP -->|"sync clusters/prod (1m)"| gitops
+    StgEnv --> NS1
     ProdEnv --> NS3
-    GHCR -->|"pull"| cluster
+    GHCR -->|"pull"| devc
+    GHCR -->|"pull"| prodc
+    BS -->|"agent tokens: workloads + Flux CRDs"| devc
+    BS -->|"agent tokens"| prodc
 ```
 
 **Review gate:** every PR to `duynhlab/gitops` requires DevOps/SRE approval
 (CODEOWNERS + branch protection). The only exception is the CI dev-deploy lane,
-which commits image-tag bumps to `apps/dev` directly.
+which is Flux image automation committing tag bumps to `apps/staging` directly.
 
 ## Delivery & promotion flow
 
@@ -74,13 +82,10 @@ sequenceDiagram
 
     Dev->>CI: merge code PR to main
     CI->>CI: build image sha-X, scan, sign
-    CI->>Git: commit apps/dev bump (auto)
+    Flux->>Git: image automation bumps apps/staging (auto)
     Flux->>K8s: reconcile → dev runs sha-X
     Dev->>Dev: verify in dev
-    Dev->>Git: Backstage "Update/Promote" (env=uat, tag=sha-X) → PR
-    Ops->>Git: review + merge
-    Flux->>K8s: reconcile → uat runs sha-X
-    Dev->>Git: same template (env=prod) → PR
+    Dev->>Git: Backstage "Enable Environment" / "Promote Image" → PR
     Ops->>Git: review + merge
     Flux->>K8s: reconcile → prod runs sha-X
 ```
@@ -104,14 +109,14 @@ corepack yarn start          # frontend :3000, backend :7007, SQLite in-memory
 
 ## Deploy to Kind
 
-The whole stack — Flux Operator + FluxInstance (syncing
-[duynhlab/gitops](https://github.com/duynhlab/gitops)), CloudNativePG, the
-Backstage database (CNPG `Cluster`) and Backstage itself — is declared in
+The whole stack — three Kind clusters: mgmt (Backstage + CNPG) and one per
+environment, each running Flux Operator + FluxInstance syncing its own path in
+[duynhlab/gitops](https://github.com/duynhlab/gitops) — is declared in
 [`deploy/helmfile.yaml.gotmpl`](deploy/helmfile.yaml.gotmpl):
 
 ```bash
 ./deploy/setup.sh
-# Open http://localhost:7007 (Kind maps NodePort 30007 → host 7007)
+# Open http://localhost:7007 (kind-mgmt maps NodePort 30007 → host 7007)
 ```
 
 See [deploy/README.md](deploy/README.md) for details.
@@ -121,10 +126,10 @@ See [deploy/README.md](deploy/README.md) for details.
 | Plugin | Purpose |
 |--------|---------|
 | Software Catalog | Service registry — entities discovered from `duynhlab/gitops` `catalog/*.yaml` |
-| Kubernetes | Pods/logs across all environments (label selector `app.kubernetes.io/name=<svc>`) |
+| Kubernetes | Pods/logs across the environment clusters (label selector `app.kubernetes.io/name=<svc>`) |
 | Flux (`@backstage-community/plugin-flux`) | HelmRelease status per env, Sync/Suspend |
 | GitHub Actions (`@backstage-community/plugin-github-actions`) | **CI/CD tab** — workflow runs of the repo in `github.com/project-slug` |
-| Scaffolder | `onboard-service`, `update-service` templates (PR-based self-service) |
+| Scaffolder | `onboard-service`, `update-env-var`, `enable-environment`, `promote-image` (PR-based self-service) |
 | TechDocs, Search, Notifications | Docs, full-text search, signals |
 
 ### CI/CD tab (GitHub Actions)
@@ -158,18 +163,20 @@ backstage/
 │   ├── systems/ecommerce.yaml      # System entity
 │   └── org/platform-team.yaml      # Group + User entities
 ├── templates/
-│   ├── onboard-service/            # New service → PR (base + dev/uat/prod + catalog)
-│   └── update-service/             # Update/promote one env → PR
+│   ├── onboard-service/            # New service → staging PR
+│   ├── update-env-var/             # Surgical one-env-var PR
+│   ├── enable-environment/         # Add beta/prod-us/prod-eu
+│   └── promote-image/              # Re-tag us→eu (registry)
 ├── packages/app/                   # Frontend (React)
 ├── packages/backend/               # Backend + Dockerfile
 ├── deploy/
 │   ├── helmfile.yaml.gotmpl        # Full stack: flux, cnpg, backstage-db, backstage
-│   ├── kind-config.yaml            # Kind cluster (NodePort 30007 → host 7007)
+│   ├── kind-{mgmt,dev,prod}.yaml   # Three Kind clusters (mgmt maps NodePort 30007 → host 7007)
 │   ├── setup.sh                    # One-command bootstrap
 │   └── charts/                     # Local charts: backstage, backstage-db (CNPG)
 └── docs/
     ├── onboarding.md               # Dev guide + DevOps review checklist
-    └── environments.md             # dev/uat/prod model, promotion, rollback
+    └── environments.md             # staging/beta/prod-us/prod-eu model, promotion, rollback
 ```
 
 ## Configuration
@@ -184,7 +191,7 @@ backstage/
 
 | Repository | Purpose |
 |------------|---------|
-| [duynhlab/gitops](https://github.com/duynhlab/gitops) | Source of truth for dev/uat/prod deployments — all self-service PRs land here |
+| [duynhlab/gitops](https://github.com/duynhlab/gitops) | Source of truth for staging/beta/prod-us/prod-eu deployments — all self-service PRs land here |
 | [duynhlab/checkout-service](https://github.com/duynhlab/checkout-service) | Checkout pricing API (Go) — the reference service on this platform |
 | [duynhlab/helm-charts](https://github.com/duynhlab/helm-charts) | Shared `mop` service chart (OCI) |
 | [duynhlab/gha-workflows](https://github.com/duynhlab/gha-workflows) | Reusable CI workflows (go-check, docker-build-go, trivy, cosign) |

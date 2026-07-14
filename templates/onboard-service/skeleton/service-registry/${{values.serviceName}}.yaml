@@ -1,0 +1,5 @@
+# Service registry entry (metadata only; live environments are derivable from
+# apps/<env>/${{ values.serviceName }}/). Written by the Onboard template.
+name: ${{ values.serviceName }}
+repo: duynhlab/${{ values.serviceName }}-service
+owner: ${{ values.owner }}

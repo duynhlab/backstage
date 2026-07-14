@@ -81,6 +81,20 @@ spec:
               value: {{ .Values.baseUrl }}
             - name: BACKEND_BASE_URL
               value: {{ .Values.baseUrl }}
+            - name: K8S_DEV_URL
+              value: {{ .Values.clusters.dev.url | quote }}
+            - name: K8S_PROD_URL
+              value: {{ .Values.clusters.prod.url | quote }}
+            - name: K8S_DEV_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-github
+                  key: k8sDevToken
+            - name: K8S_PROD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: backstage-github
+                  key: k8sProdToken
           readinessProbe:
             httpGet:
               path: /healthcheck

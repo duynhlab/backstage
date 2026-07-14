@@ -1,0 +1,17 @@
+# Flux Kustomization for the ${{ values.environment }} environment (all services
+# in apps/${{ values.environment }}). Env-wide and idempotent — the first service
+# enabled in this environment creates it; later services re-render it unchanged.
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps-${{ values.environment }}
+  namespace: flux-system
+spec:
+  interval: 1m
+  retryInterval: 30s
+  timeout: 5m
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+  path: ./apps/${{ values.environment }}

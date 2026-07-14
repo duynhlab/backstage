@@ -1,0 +1,73 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: promote-image
+  title: Promote Image to Region
+  description: |
+    Promote a verified image into a production region (us → eu) by re-tagging
+    it in the registry. This triggers the service's promote-region workflow;
+    it does NOT touch git. Flux image automation for the target region then
+    opens a reviewed pull request against the gitops repo.
+  tags:
+    - promote
+    - image
+    - release
+spec:
+  owner: platform-team
+  type: deployment
+
+  parameters:
+    - title: Promotion
+      required:
+        - serviceRef
+        - sourceTag
+        - toRegion
+      properties:
+        serviceRef:
+          title: Service
+          type: string
+          pattern: '^component:default/[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$'
+          ui:field: EntityPicker
+          ui:options:
+            allowArbitraryValues: false
+            catalogFilter:
+              kind: Component
+              spec.type: service
+            defaultKind: Component
+        sourceTag:
+          title: Source image tag
+          type: string
+          description: An existing tag to promote (e.g. main-42-<sha> for →us, or us-42-<sha> for →eu)
+          pattern: '^(main|us|beta)-[0-9]+-[a-f0-9]+$'
+        toRegion:
+          title: Target region
+          type: string
+          enum:
+            - us
+            - eu
+          default: us
+
+  steps:
+    - id: dispatch
+      name: Trigger the promote-region workflow
+      action: github:actions:dispatch
+      input:
+        repoUrl: github.com?owner=duynhlab&repo=${{ parameters.serviceRef | parseEntityRef | pick('name') }}-service
+        workflowId: promote-region.yml
+        branchOrTagName: main
+        workflowInputs:
+          source_tag: ${{ parameters.sourceTag }}
+          to_region: ${{ parameters.toRegion }}
+
+  output:
+    text:
+      - title: Promotion triggered
+        content: |
+          Re-tagging `${{ parameters.sourceTag }}` → `${{ parameters.toRegion }}-…`
+          for **${{ parameters.serviceRef | parseEntityRef | pick('name') }}**.
+          Watch the **promote-region** run in the service repo; once the new tag
+          lands, Flux opens a `flux-image-prod-${{ parameters.toRegion }}` PR in
+          the gitops repo for DevOps/SRE review.
+    links:
+      - title: Service in catalog
+        entityRef: ${{ parameters.serviceRef }}

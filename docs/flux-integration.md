@@ -7,13 +7,13 @@ How Backstage and Flux are wired together on this platform.
 ```mermaid
 flowchart TD
     subgraph gitops ["duynhlab/gitops"]
-        Clusters["clusters/kind\n(sources + 3 env Kustomizations)"]
-        Apps["apps/{dev,uat,prod}/&lt;svc&gt;"]
+        Clusters["clusters/{staging,prod}\n(sources + Kustomizations)"]
+        Apps["apps/{staging,beta,prod-us,prod-eu}/&lt;svc&gt;"]
     end
 
-    subgraph cluster ["Cluster"]
+    subgraph cluster ["Each environment cluster (kind-dev / kind-prod)"]
         FluxOp["flux-operator\n(helmfile-managed)"]
-        FI["FluxInstance 'flux'\nsync: gitops → clusters/kind"]
+        FI["FluxInstance 'flux'\nsync: gitops → clusters/&lt;env&gt;"]
         Ctrl["source / kustomize / helm /\nnotification controllers"]
         HR["HelmReleases per env\n(mop chart from OCIRepository)"]
         FluxOp --> FI --> Ctrl --> HR
@@ -30,11 +30,15 @@ flowchart TD
 ```
 
 - Flux itself is installed by the **Flux Operator** via helmfile
-  (`deploy/helmfile.yaml.gotmpl`); the **FluxInstance** defines the
-  distribution and the sync target (`duynhlab/gitops`, path `clusters/kind`).
-- Backstage talks to the Kubernetes API with its ServiceAccount:
-  `flux-view-flux-system` (read Flux CRDs), `backstage-k8s-read` (workloads),
-  `backstage-flux-patch` (Sync/Suspend buttons).
+  (`deploy/helmfile.yaml.gotmpl`); each environment cluster runs its own
+  **FluxInstance** syncing `duynhlab/gitops` at `clusters/<env>`.
+- Backstage (on kind-mgmt) talks to each environment cluster with the
+  `backstage-agent` ServiceAccount token: `flux-view-flux-system` (read Flux
+  CRDs), `backstage-agent-k8s-read` (workloads), `backstage-agent-flux-patch`
+  (Sync/Suspend buttons). This live query is the *only* reason Backstage holds
+  a per-cluster token — a hub-and-spoke pattern that is entirely optional. See
+  [deploy/README.md → "Why `backstage-agent`"](../deploy/README.md#why-backstage-agent--and-is-it-optional)
+  for the plane model, the Argo CD comparison, and the prod read-only option.
 
 ## How entity ↔ resource matching works
 
@@ -47,10 +51,10 @@ Two annotations on the catalog entity (both set by the onboarding template):
 
 ## Useful views
 
-- **Service page → Flux tab**: the three HelmReleases (dev/uat/prod), applied
+- **Service page → Flux tab**: the per-environment HelmReleases (staging/beta/prod-us/prod-eu), applied
   chart version and revision, Sync / Suspend / Resume buttons
 - **Service page → Kubernetes tab**: pods, logs and events across
-  `<svc>-dev/uat/prod`
+  `<svc>-staging` (kind-dev) and `<svc>-{beta,prod-us,prod-eu}` (kind-prod)
 - **Sidebar → Flux Runtime**: controller health and versions cluster-wide
 
 ## Troubleshooting

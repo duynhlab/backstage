@@ -1,0 +1,102 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: enable-environment
+  title: Enable Environment
+  description: |
+    Promote a service that already runs in staging into a higher environment
+    (beta / prod-us / prod-eu) on the prod cluster. Opens one pull request that
+    adds the environment overlay (values, HelmRelease, SecretStore,
+    ExternalSecret), its Flux Kustomization + image automation. Always requires
+    DevOps/SRE review (the paths are CODEOWNER-protected).
+  tags:
+    - gitops
+    - flux
+    - promote
+    - environment
+spec:
+  owner: platform-team
+  type: deployment
+
+  parameters:
+    - title: Target
+      required:
+        - serviceRef
+        - environment
+        - imageTag
+      properties:
+        serviceRef:
+          title: Service
+          type: string
+          pattern: '^component:default/[a-z0-9]([a-z0-9-]{0,28}[a-z0-9])?$'
+          ui:field: EntityPicker
+          ui:options:
+            allowArbitraryValues: false
+            catalogFilter:
+              kind: Component
+              spec.type: service
+            defaultKind: Component
+        environment:
+          title: Environment to enable
+          type: string
+          enum:
+            - beta
+            - prod-us
+            - prod-eu
+          default: beta
+        imageTag:
+          title: Initial image tag
+          type: string
+          description: A tag that already exists in ghcr (e.g. a staging-verified build)
+          pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$'
+        replicas:
+          title: Replicas
+          type: integer
+          default: 2
+          minimum: 1
+          maximum: 10
+
+  steps:
+    - id: fetch
+      name: Render environment overlay + Flux wiring
+      action: fetch:template
+      input:
+        url: ./skeleton
+        targetPath: .
+        values:
+          serviceName: ${{ parameters.serviceRef | parseEntityRef | pick('name') }}
+          environment: ${{ parameters.environment }}
+          imageTag: ${{ parameters.imageTag }}
+          replicas: ${{ parameters.replicas }}
+          # App ENV must be a value the service config accepts (dev/staging/production).
+          appEnv: ${{ 'staging' if parameters.environment == 'beta' else 'production' }}
+          logLevel: ${{ 'info' if parameters.environment == 'beta' else 'warn' }}
+          sampleRate: ${{ '0.5' if parameters.environment == 'beta' else '0.1' }}
+          # Image-automation tag prefix per region: beta tracks main builds,
+          # prod-us/prod-eu track region-promoted tags (see Promote Image).
+          tagPrefix: ${{ 'main' if parameters.environment == 'beta' else ('us' if parameters.environment == 'prod-us' else 'eu') }}
+
+    - id: pr
+      name: Open pull request to gitops
+      action: publish:github:pull-request
+      input:
+        repoUrl: github.com?owner=duynhlab&repo=gitops
+        branchName: enable-${{ parameters.serviceRef | parseEntityRef | pick('name') }}-${{ parameters.environment }}
+        title: 'Enable ${{ parameters.environment }} for ${{ parameters.serviceRef | parseEntityRef | pick("name") }}'
+        update: true
+        description: |
+          ## Enable `${{ parameters.environment }}` for `${{ parameters.serviceRef | parseEntityRef | pick('name') }}`
+
+          Adds the `apps/${{ parameters.environment }}/${{ parameters.serviceRef | parseEntityRef | pick('name') }}/`
+          overlay, the `clusters/prod/apps-${{ parameters.environment }}.yaml`
+          Kustomization (idempotent), and image automation. Initial tag
+          `${{ parameters.imageTag }}`, ${{ parameters.replicas }} replicas.
+
+          Production environment — **requires DevOps/SRE review**.
+
+  output:
+    links:
+      - title: Pull Request (needs DevOps/SRE approval)
+        url: ${{ steps['pr'].output.remoteUrl }}
+      - title: Service in catalog
+        entityRef: ${{ parameters.serviceRef }}

@@ -1,0 +1,100 @@
+# Read access to core K8s resources for the Backstage Kubernetes plugin
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-agent-k8s-read
+rules:
+  - apiGroups: [""]
+    resources:
+      - namespaces
+      - pods
+      - pods/log
+      - services
+      - configmaps
+      - events
+      - limitranges
+      - resourcequotas
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources:
+      - deployments
+      - replicasets
+      - statefulsets
+      - daemonsets
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources:
+      - jobs
+      - cronjobs
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources:
+      - ingresses
+    verbs: [get, list, watch]
+  - apiGroups: [autoscaling]
+    resources:
+      - horizontalpodautoscalers
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-agent-k8s-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage-agent-k8s-read
+subjects:
+  - kind: ServiceAccount
+    name: backstage-agent
+    namespace: {{ .Release.Namespace }}
+---
+# Read access to Flux CRDs — the flux-view ClusterRole is created by the FluxInstance
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-agent-flux-view
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: flux-view-flux-system
+subjects:
+  - kind: ServiceAccount
+    name: backstage-agent
+    namespace: {{ .Release.Namespace }}
+---
+# Patch access for the Flux plugin Sync/Suspend/Resume buttons
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: backstage-agent-flux-patch
+rules:
+  - apiGroups: [source.toolkit.fluxcd.io]
+    resources:
+      - buckets
+      - helmcharts
+      - gitrepositories
+      - helmrepositories
+      - ocirepositories
+    verbs: [patch]
+  - apiGroups: [kustomize.toolkit.fluxcd.io]
+    resources:
+      - kustomizations
+    verbs: [patch]
+  - apiGroups: [helm.toolkit.fluxcd.io]
+    resources:
+      - helmreleases
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: backstage-agent-flux-patch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: backstage-agent-flux-patch
+subjects:
+  - kind: ServiceAccount
+    name: backstage-agent
+    namespace: {{ .Release.Namespace }}

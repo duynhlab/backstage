@@ -16,6 +16,16 @@ githubAuth:
   clientId: ""
   clientSecret: ""
 
+# Environment clusters the Kubernetes/Flux plugins read (backstage-agent
+# ServiceAccount tokens). Set via helmfile from env at deploy time.
+clusters:
+  dev:
+    url: ""
+    token: ""
+  prod:
+    url: ""
+    token: ""
+
 db:
   # Defaults to backstage-db-rw.<release namespace>.svc.cluster.local
   host: ""

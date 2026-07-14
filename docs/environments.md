@@ -1,63 +1,86 @@
 # Environments & Promotion
 
-The platform runs three environments. Today they are namespaces on one Kind
-cluster; the GitOps layout already separates them completely, so moving to
-per-environment clusters only means pointing each cluster's FluxInstance at its
-own `clusters/<name>` path in [duynhlab/gitops](https://github.com/duynhlab/gitops).
+Four environments across **two Kind clusters**; a service starts in staging
+only and is promoted outward on demand.
 
-## The model
+| Env | Cluster | Namespace | ENV (app) | LOG_LEVEL | How it updates |
+|-----|---------|-----------|-----------|-----------|----------------|
+| staging | `kind-dev` | `<svc>-staging` | staging | debug | CI builds `main-<n>-<sha>` → Flux image automation commits to `main` (auto) |
+| beta | `kind-prod` | `<svc>-beta` | staging | info | Enable Environment PR; image automation → reviewed PR |
+| prod-us | `kind-prod` | `<svc>-prod-us` | production | warn | Promote Image (us) → image automation → reviewed PR |
+| prod-eu | `kind-prod` | `<svc>-prod-eu` | production | warn | Promote Image (eu) → image automation → reviewed PR |
 
-| Env | Namespace | ENV | LOG_LEVEL | Replicas | OTEL_SAMPLE_RATE | Who updates it |
-|-----|-----------|-----|-----------|----------|------------------|----------------|
-| dev | `<svc>-dev` | development | debug | 1 | 1.0 | **Service CI** — auto-commit on every merge to main |
-| uat | `<svc>-uat` | staging | info | 2 | 0.5 | **Backstage PR** + DevOps review |
-| prod | `<svc>-prod` | production | warn | 2 | 0.1 | **Backstage PR** + DevOps review |
+> The app's config only accepts ENV ∈ {…,staging,…,production,…}, so beta maps
+> to `staging` and the prod regions to `production` at the app level, while the
+> platform still treats them as distinct environments/namespaces.
 
-Each environment owns one file per service —
-`apps/<env>/<svc>/release-patch.yaml` — containing the image tag, replicas and
-the **complete env var contract**. That file is the full desired state: a PR
-diff against it is everything that will change.
+## Topology
 
-## Promotion pipeline
+```mermaid
+flowchart TD
+    subgraph mgmt ["kind-mgmt"]
+        BS["Backstage :7007"]
+        DB["CNPG backstage-db"]
+        BS --> DB
+    end
+    subgraph dev ["kind-dev = staging"]
+        FxD["Flux + image automation + ESO"]
+        NsS["ns <svc>-staging"]
+        FxD --> NsS
+    end
+    subgraph prod ["kind-prod = beta + prod-us + prod-eu"]
+        FxP["Flux + image automation + ESO"]
+        NsB["ns <svc>-beta"]
+        NsU["ns <svc>-prod-us"]
+        NsE["ns <svc>-prod-eu"]
+        FxP --> NsB & NsU & NsE
+    end
+    Git["duynhlab/gitops"]
+    FxD -->|"sync clusters/staging"| Git
+    FxP -->|"sync clusters/prod"| Git
+    BS -->|"agent token: read + Flux tab"| dev
+    BS -->|"agent token"| prod
+```
+
+## Self-service templates
+
+| Template | Does | Review |
+|----------|------|--------|
+| **Onboard New Service** | Adds a service to **staging** (base + staging values, HelmRelease, SecretStore/ExternalSecret, image automation, registry, catalog) | none (staging unowned) |
+| **Update Env Var** | Surgically sets one `env:` entry in `values-<env>.yaml` | staging none; beta/prod-* required |
+| **Enable Environment** | Adds a beta / prod-us / prod-eu overlay + Flux wiring for an existing service | required |
+| **Promote Image to Region** | Re-tags a verified image us→eu (registry only); Flux then opens a reviewed PR | via the resulting PR |
+
+## Values model
+
+Each env's `HelmRelease` reads `values-base.yaml` then `values-<env>.yaml`
+(two `configMapGenerator` ConfigMaps via `valuesFrom`, later wins). The env
+file holds image tag + replicas + the full env-var contract and is the single
+source of truth for that environment.
+
+## Image promotion (tags, not rebuilds)
 
 ```mermaid
 flowchart LR
-    Merge["Merge code PR\n(service repo)"] --> Build["CI: build + scan + sign\nghcr sha-X (immutable)"]
-    Build -->|"auto-commit"| Dev["dev\nruns sha-X"]
-    Dev -->|"verified?\nBackstage Update/Promote\nenv=uat, tag=sha-X"| PRU["PR → DevOps review"]
-    PRU -->|merge| Uat["uat\nruns sha-X"]
-    Uat -->|"verified?\nsame template, env=prod"| PRP["PR → DevOps review"]
-    PRP -->|merge| Prod["prod\nruns sha-X"]
+    CI["CI on main"] -->|"main-<n>-<sha>"| Stg["staging (auto)"]
+    Stg -->|"Enable Environment / verified"| Beta["beta"]
+    Beta -->|"Promote Image us"| US["prod-us (us-<n>-<sha>)"]
+    US -->|"Promote Image eu"| EU["prod-eu (eu-<n>-<sha>)"]
 ```
 
-Rules that make this safe:
-
-- **Images are immutable** (`sha-<short>` per commit, `X.Y.Z` on tags, no
-  `latest`). Promotion moves a tag through env files — the artifact never changes.
-- **One PR touches one environment.** The Update/Promote template only writes
-  `apps/<env>/<svc>/release-patch.yaml`.
-- **dev is the only push lane.** CI (holding a scoped token) commits tag bumps
-  to `apps/dev` directly; branch protection requires review for everything else.
+Region prefixes (`main-`/`us-`/`eu-`) let each environment's ImagePolicy track
+exactly the tags meant for it; promotion re-tags an existing image (same
+`<n>-<sha>`), never rebuilds.
 
 ## Rollback
 
-Rollback = promotion in reverse, same mechanics:
+Re-run **Update Env Var** or revert the gitops commit for that env's
+`values-<env>.yaml`; `git log apps/prod-eu/<svc>/` is the deployment history.
 
-1. **Fast:** run **Update / Promote Service** with the previous known-good tag
-   (find it in the env file's git history) → PR → merge → Flux rolls back.
-2. **Git-native:** `git revert` the offending commit in `duynhlab/gitops` → PR → merge.
-
-Because every change is a commit in one repo, `git log apps/prod/checkout/`
-is the complete deployment history of prod.
-
-## Verifying an environment
+## Verify (when the clusters are up)
 
 ```bash
-flux get kustomizations -n flux-system            # apps-dev / apps-uat / apps-prod
-kubectl -n checkout-uat get pods,helmrelease
-kubectl -n checkout-uat port-forward svc/checkout 8080:8080
-curl -s localhost:8080/api/v1/info | jq           # shows env, version, log level
+kubectl --context kind-dev  -n <svc>-staging  get pods,helmrelease,externalsecret
+kubectl --context kind-prod -n <svc>-prod-eu  get pods,helmrelease
+kubectl --context kind-dev  -n flux-system get imagepolicy,imageupdateautomation
 ```
-
-Or in Backstage: the service's **Kubernetes** tab shows pods from all three
-namespaces; the **Flux** tab shows the three HelmReleases and their revisions.

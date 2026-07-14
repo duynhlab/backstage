@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>duynhlab Platform — Kiến trúc tổng thể</title>
+<style>
+  :root {
+    --bg: #F5F7F9;
+    --surface: #FFFFFF;
+    --tint: #EDF1F7;
+    --ink: #1C2733;
+    --muted: #5B6B7B;
+    --line: #D8E0E8;
+    --accent: #4A5FC1;
+    --accent-soft: #E4E8F8;
+    --flow: #2F9E6E;
+    --flow-soft: #E2F2EA;
+    --warn: #B37217;
+    --warn-soft: #F7ECDA;
+    --mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0E1319; --surface: #161D26; --tint: #1C2532;
+      --ink: #E4EAF1; --muted: #8FA0B3; --line: #2B3644;
+      --accent: #8B9BE8; --accent-soft: #232B47;
+      --flow: #4CB584; --flow-soft: #17372A;
+      --warn: #D9A05B; --warn-soft: #3A2C15;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0E1319; --surface: #161D26; --tint: #1C2532;
+    --ink: #E4EAF1; --muted: #8FA0B3; --line: #2B3644;
+    --accent: #8B9BE8; --accent-soft: #232B47;
+    --flow: #4CB584; --flow-soft: #17372A;
+    --warn: #D9A05B; --warn-soft: #3A2C15;
+  }
+  :root[data-theme="light"] {
+    --bg: #F5F7F9; --surface: #FFFFFF; --tint: #EDF1F7;
+    --ink: #1C2733; --muted: #5B6B7B; --line: #D8E0E8;
+    --accent: #4A5FC1; --accent-soft: #E4E8F8;
+    --flow: #2F9E6E; --flow-soft: #E2F2EA;
+    --warn: #B37217; --warn-soft: #F7ECDA;
+  }
+
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--sans); font-size: 15.5px; line-height: 1.6;
+    margin: 0; padding: 0 20px 80px;
+  }
+  main { max-width: 1080px; margin: 0 auto; }
+  header.page { padding: 44px 0 8px; border-bottom: 2px solid var(--ink); margin-bottom: 8px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent); margin: 0 0 10px;
+  }
+  h1 {
+    font-family: var(--mono); font-size: clamp(24px, 4vw, 34px);
+    letter-spacing: -.01em; margin: 0 0 8px; text-wrap: balance; line-height: 1.2;
+  }
+  .lede { color: var(--muted); max-width: 62ch; margin: 0 0 26px; }
+  section { margin-top: 52px; }
+  h2 {
+    font-family: var(--mono); font-size: 13px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink);
+    border-bottom: 1px solid var(--line); padding-bottom: 8px; margin: 0 0 6px;
+  }
+  h2 .num { color: var(--accent); margin-right: 10px; }
+  .caption { color: var(--muted); font-size: 14px; margin: 4px 0 18px; max-width: 70ch; }
+
+  .diagram { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 8px; }
+  .diagram svg { display: block; min-width: 900px; width: 100%; height: auto; }
+
+  /* SVG vocabulary */
+  .grp   { fill: none; stroke: var(--line); stroke-dasharray: 5 4; rx: 10; }
+  .grp-solid { fill: var(--tint); stroke: var(--line); opacity: .55; }
+  .box   { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+  .box-tint   { fill: var(--tint); stroke: var(--line); stroke-width: 1.2; }
+  .box-accent { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.2; }
+  .box-flow   { fill: var(--flow-soft); stroke: var(--flow); stroke-width: 1.2; }
+  .box-warn   { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.2; }
+  text { font-family: var(--sans); fill: var(--ink); }
+  .t     { font-size: 13.5px; font-weight: 600; }
+  .t-mono{ font-family: var(--mono); font-size: 12.5px; font-weight: 600; }
+  .sub   { font-size: 11px; fill: var(--muted); }
+  .gl    { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; fill: var(--muted); text-transform: uppercase; }
+  .edge      { stroke: var(--muted); stroke-width: 1.4; fill: none; }
+  .edge-flow { stroke: var(--flow); stroke-width: 1.6; fill: none; }
+  .edge-warn { stroke: var(--warn); stroke-width: 1.6; fill: none; stroke-dasharray: 6 4; }
+  .edge-acc  { stroke: var(--accent); stroke-width: 1.6; fill: none; }
+  .edge-faint{ stroke: var(--muted); stroke-width: 1.2; fill: none; stroke-dasharray: 3 4; }
+  .badge  { fill: var(--surface); stroke: var(--muted); stroke-width: 1.1; }
+  .badge-t{ font-family: var(--mono); font-size: 10.5px; font-weight: 700; fill: var(--ink); text-anchor: middle; }
+  .elabel { font-size: 10.5px; fill: var(--muted); }
+
+  ol.legend { columns: 2; column-gap: 40px; padding-left: 0; margin: 18px 4px 0; list-style: none; counter-reset: leg; font-size: 14px; }
+  ol.legend li { counter-increment: leg; margin-bottom: 8px; break-inside: avoid; padding-left: 30px; position: relative; }
+  ol.legend li::before {
+    content: counter(leg); position: absolute; left: 0; top: 2px;
+    font-family: var(--mono); font-size: 10.5px; font-weight: 700;
+    width: 19px; height: 19px; border: 1px solid var(--muted); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  ol.legend .warn-txt { color: var(--warn); font-weight: 600; }
+  @media (max-width: 720px) { ol.legend { columns: 1; } }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  th { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  td { padding: 9px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  td code, li code, p code { font-family: var(--mono); font-size: .88em; background: var(--tint); padding: 1px 5px; border-radius: 4px; }
+  .num-col { font-variant-numeric: tabular-nums; }
+
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 780px) { .cols { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; }
+  .panel h3 { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 10px; }
+  .panel ul { margin: 0; padding-left: 18px; }
+  .panel li { margin-bottom: 7px; }
+  .panel.pro h3 { color: var(--flow); }
+  .panel.con h3 { color: var(--warn); }
+
+  .pill { display: inline-block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; padding: 2px 9px; border-radius: 20px; border: 1px solid; margin-right: 6px; white-space: nowrap; }
+  .pill-ok   { color: var(--flow);   border-color: var(--flow);   background: var(--flow-soft); }
+  .pill-wait { color: var(--warn);   border-color: var(--warn);   background: var(--warn-soft); }
+  .pill-plan { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+
+  ul.status { list-style: none; padding: 0; margin: 14px 0 0; }
+  ul.status li { display: flex; gap: 12px; align-items: baseline; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+  ul.status li:last-child { border-bottom: none; }
+  ul.status .pill { flex-shrink: 0; min-width: 86px; text-align: center; }
+
+  footer { margin-top: 60px; padding-top: 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; font-family: var(--mono); }
+  a { color: var(--accent); }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<main>
+<header class="page">
+  <p class="eyebrow">duynhlab · internal developer platform</p>
+  <h1>Kiến trúc tổng thể</h1>
+</header>
+<p class="lede">
+  Dev tự onboard → update env → enable env → promote image qua 4 Backstage template; DevOps/SRE chỉ review PR.
+  Ba Kind cluster: <strong>mgmt</strong> (Backstage + CNPG) và <strong>dev / prod</strong> —
+  mỗi môi trường một cluster chạy Flux riêng, sync đúng path của nó trong repo <code>gitops</code>.
+</p>
+
+<section>
+  <h2><span class="num">01</span>Sơ đồ thành phần &amp; luồng chính</h2>
+  <p class="caption">Ba repo GitHub + registry ghcr, ba Kind cluster: mgmt (Backstage + CNPG), dev và prod — mỗi env một Flux riêng. Số trên mỗi cạnh tra ở chú giải bên dưới.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1180 600" role="img" aria-label="Sơ đồ kiến trúc platform duynhlab">
+    <defs>
+      <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"></path>
+      </marker>
+    </defs>
+
+    <!-- actors -->
+    <rect class="box-tint" x="40" y="70" width="150" height="56" rx="7"></rect>
+    <text class="t" x="58" y="94">Developer</text>
+    <text class="sub" x="58" y="112">code + self-service</text>
+    <rect class="box-tint" x="40" y="170" width="150" height="56" rx="7"></rect>
+    <text class="t" x="58" y="194">DevOps / SRE</text>
+    <text class="sub" x="58" y="212">review &amp; approve</text>
+
+    <!-- github row -->
+    <text class="gl" x="300" y="48">github — duynhlab</text>
+    <rect class="box" x="300" y="60" width="180" height="64" rx="7"></rect>
+    <text class="t-mono" x="316" y="86">checkout-service</text>
+    <text class="sub" x="316" y="104">Go · CI gha-workflows</text>
+
+    <rect class="box-accent" x="560" y="60" width="180" height="64" rx="7"></rect>
+    <text class="t-mono" x="576" y="86">gitops</text>
+    <text class="sub" x="576" y="104">source of truth · 3 env</text>
+
+    <text class="gl" x="940" y="48">registry</text>
+    <rect class="box" x="940" y="60" width="190" height="64" rx="7"></rect>
+    <text class="t-mono" x="956" y="86">ghcr.io</text>
+    <text class="sub" x="956" y="104">images sha-* · chart mop</text>
+
+    <rect class="box" x="300" y="150" width="180" height="48" rx="7"></rect>
+    <text class="t-mono" x="316" y="170">backstage</text>
+    <text class="sub" x="316" y="187">helmfile · templates</text>
+
+    <!-- mgmt cluster -->
+    <rect class="grp" x="40" y="290" width="330" height="220" rx="12"></rect>
+    <text class="gl" x="56" y="316">kind-mgmt</text>
+    <rect class="box" x="60" y="330" width="290" height="48" rx="6"></rect>
+    <text class="t" x="76" y="350">Backstage portal :7007</text>
+    <text class="sub" x="76" y="368">NodePort 30007 → host 7007</text>
+    <line class="edge" x1="205" y1="378" x2="205" y2="394"></line>
+    <rect class="box" x="60" y="396" width="290" height="44" rx="6"></rect>
+    <text class="t-mono" x="76" y="414">CNPG backstage-db</text>
+    <text class="sub" x="76" y="431">PostgreSQL cho Backstage</text>
+
+    <!-- dev cluster -->
+    <rect class="grp" x="390" y="290" width="360" height="220" rx="12"></rect>
+    <text class="gl" x="406" y="316">kind-dev</text>
+    <rect class="box" x="410" y="330" width="150" height="64" rx="6"></rect>
+    <text class="t" x="424" y="352">Flux</text>
+    <text class="sub" x="424" y="370">sync clusters/dev</text>
+    <line class="edge" x1="560" y1="362" x2="578" y2="362" marker-end="url(#arr)"></line>
+    <rect class="box-flow" x="580" y="330" width="150" height="64" rx="6"></rect>
+    <text class="t-mono" x="592" y="352">checkout-staging</text>
+    <text class="sub" x="592" y="370">HelmRelease (mop)</text>
+    <rect class="box-tint" x="410" y="420" width="320" height="44" rx="6"></rect>
+    <text class="t-mono" x="424" y="440">backstage-agent</text>
+    <text class="sub" x="424" y="456">SA · RBAC · token cho Backstage</text>
+
+    <!-- prod cluster -->
+    <rect class="grp" x="770" y="290" width="360" height="220" rx="12"></rect>
+    <text class="gl" x="786" y="316">kind-prod</text>
+    <rect class="box" x="790" y="330" width="150" height="64" rx="6"></rect>
+    <text class="t" x="804" y="352">Flux</text>
+    <text class="sub" x="804" y="370">sync clusters/prod</text>
+    <line class="edge" x1="940" y1="362" x2="958" y2="362" marker-end="url(#arr)"></line>
+    <rect class="box" x="960" y="330" width="150" height="64" rx="6"></rect>
+    <text class="t-mono" x="960" y="352">beta/prod-us/prod-eu</text>
+    <text class="sub" x="972" y="370">HelmRelease (mop)</text>
+    <rect class="box-tint" x="790" y="420" width="320" height="44" rx="6"></rect>
+    <text class="t-mono" x="804" y="440">backstage-agent</text>
+    <text class="sub" x="804" y="456">SA · RBAC · token cho Backstage</text>
+
+    <!-- edges -->
+    <line class="edge" x1="190" y1="98" x2="298" y2="98" marker-end="url(#arr)"></line>
+    <circle class="badge" cx="243" cy="98" r="10"></circle><text class="badge-t" x="243" y="102">1</text>
+    <path class="edge" d="M390,124 V140 H985 V126" marker-end="url(#arr)"></path>
+    <circle class="badge" cx="700" cy="140" r="10"></circle><text class="badge-t" x="700" y="144">2</text>
+    <line class="edge-warn" x1="480" y1="80" x2="558" y2="80" marker-end="url(#arr)"></line>
+    <circle class="badge" cx="520" cy="80" r="10"></circle><text class="badge-t" x="520" y="84">3</text>
+    <path class="edge" d="M190,112 H210 V328" marker-end="url(#arr)"></path>
+    <circle class="badge" cx="210" cy="240" r="10"></circle><text class="badge-t" x="210" y="244">4</text>
+    <path class="edge-acc" d="M330,330 V235 H575 V128" marker-end="url(#arr)"></path>
+    <circle class="badge" cx="455" cy="235" r="10"></circle><text class="badge-t" x="455" y="239">5</text>
+    <path class="edge" d="M190,198 H520 V97 H558" marker-end="url(#arr)"></path>
+    <circle class="badge" cx="355" cy="198" r="10"></circle><text class="badge-t" x="355" y="202">6</text>
+    <path class="edge-flow" d="M650,124 V288" marker-end="url(#arr)"></path>
+    <circle class="badge" cx="650" cy="215" r="10"></circle><text class="badge-t" x="650" y="219">7</text>
+    <path class="edge-flow" d="M700,124 V250 H900 V288" marker-end="url(#arr)"></path>
+    <circle class="badge" cx="800" cy="250" r="10"></circle><text class="badge-t" x="800" y="254">8</text>
+    <line class="edge" x1="1035" y1="124" x2="1035" y2="288" marker-end="url(#arr)"></line>
+    <circle class="badge" cx="1035" cy="215" r="10"></circle><text class="badge-t" x="1035" y="219">9</text>
+    <path class="edge-faint" d="M150,510 V545 H570 V512" marker-end="url(#arr)"></path>
+    <path class="edge-faint" d="M205,510 V570 H950 V512" marker-end="url(#arr)"></path>
+    <circle class="badge" cx="360" cy="545" r="10"></circle><text class="badge-t" x="360" y="549">10</text>
+    <line class="edge-faint" x1="345" y1="198" x2="345" y2="288" marker-end="url(#arr)"></line>
+    <circle class="badge" cx="345" cy="270" r="10"></circle><text class="badge-t" x="345" y="274">11</text>
+  </svg>
+  </div>
+  <ol class="legend">
+    <li>Dev push code lên <code>checkout-service</code></li>
+    <li>CI (gha-workflows): test · gitleaks · build · trivy · cosign → push image <code>sha-*</code> bất biến</li>
+    <li>Flux Image Automation tự bump tag <code>apps/staging</code> (commit thẳng); prod-* qua PR review. Auth bằng GitHub App, không PAT.</li>
+    <li>Dev dùng portal (guest sign-in)</li>
+    <li>4 template (onboard / update-env-var / enable-environment / promote-image) mở PR sang <code>gitops</code>; catalog provider discover <code>catalog/*.yaml</code> chiều ngược lại</li>
+    <li>DevOps/SRE review + merge (CODEOWNERS + branch protection, 1 review)</li>
+    <li>Flux trên kind-dev sync <code>clusters/dev</code> mỗi 1 phút (FluxInstance, operator-managed)</li>
+    <li>Flux trên kind-prod sync <code>clusters/prod</code> — hai env cách ly vật lý, không đọc chéo path</li>
+    <li>Cluster pull image <code>sha-*</code> và chart <code>mop</code> (OCI) từ ghcr (cả dev lẫn prod)</li>
+    <li>Backstage đọc workloads + Flux CRDs của dev/prod qua token <code>backstage-agent</code> (K8s tab, Flux tab)</li>
+    <li>Bootstrap: <code>./deploy/setup.sh</code> — 3 kind cluster + build image + helmfile (tier env → tokens → tier mgmt)</li>
+  </ol>
+</section>
+
+<section>
+  <h2><span class="num">02</span>Pipeline delivery &amp; promotion</h2>
+  <p class="caption">Image bất biến (<code>sha-*</code>) đi xuyên suốt: promote nghĩa là chuyển tag qua file env, không rebuild. dev tự động; prod qua PR có review.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1120 170" role="img" aria-label="Pipeline từ merge code đến production">
+    <defs>
+      <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"></path>
+      </marker>
+    </defs>
+    <rect class="box" x="15" y="45" width="130" height="58" rx="7"></rect>
+    <text class="t" x="30" y="70">Merge main</text>
+    <text class="sub" x="30" y="88">code PR</text>
+    <line class="edge" x1="145" y1="74" x2="173" y2="74" marker-end="url(#arr2)"></line>
+
+    <rect class="box" x="175" y="45" width="130" height="58" rx="7"></rect>
+    <text class="t" x="190" y="70">CI</text>
+    <text class="sub" x="190" y="88">test · scan · sign</text>
+    <line class="edge" x1="305" y1="74" x2="333" y2="74" marker-end="url(#arr2)"></line>
+
+    <rect class="box" x="335" y="45" width="130" height="58" rx="7"></rect>
+    <text class="t-mono" x="350" y="70">ghcr sha-X</text>
+    <text class="sub" x="350" y="88">immutable</text>
+    <line class="edge-flow" x1="465" y1="74" x2="493" y2="74" marker-end="url(#arr2)"></line>
+
+    <rect class="box-flow" x="495" y="45" width="130" height="58" rx="7"></rect>
+    <text class="t" x="510" y="70">dev</text>
+    <text class="sub" x="510" y="88">auto → kind-dev</text>
+    <line class="edge" x1="625" y1="74" x2="653" y2="74" marker-end="url(#arr2)"></line>
+
+    <rect class="box" x="655" y="45" width="130" height="58" rx="7"></rect>
+    <text class="t" x="670" y="70">Verify</text>
+    <text class="sub" x="670" y="88">/api/v1/info · Flux tab</text>
+    <line class="edge-acc" x1="785" y1="74" x2="813" y2="74" marker-end="url(#arr2)"></line>
+
+    <rect class="box-accent" x="815" y="45" width="140" height="58" rx="7"></rect>
+    <text class="t" x="830" y="70">PR → prod</text>
+    <text class="sub" x="830" y="88">DevOps review + merge</text>
+    <line class="edge-acc" x1="955" y1="74" x2="983" y2="74" marker-end="url(#arr2)"></line>
+
+    <rect class="box-accent" x="985" y="45" width="120" height="58" rx="7"></rect>
+    <text class="t" x="1000" y="70">prod</text>
+    <text class="sub" x="1000" y="88">kind-prod, ~1 phút</text>
+
+    <text class="elabel" x="497" y="128">Rollback = promote ngược: PR với tag known-good trước đó, hoặc git revert trên gitops.</text>
+  </svg>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">03</span>Image Automation + Promote đa vùng</h2>
+  <p class="caption">Flux Image Automation trong cluster tự cập nhật tag, xác thực git bằng GitHub App <code>duynhlab/gitops</code> (App ID 4244512, scope Contents RW đúng 1 repo). staging tự động; prod-* qua PR review.</p>
+  <div class="diagram">
+  <svg viewBox="0 0 1160 300" role="img" aria-label="Luồng Flux image automation và promote đa vùng">
+    <defs>
+      <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="context-stroke"></path>
+      </marker>
+    </defs>
+
+    <!-- build -->
+    <rect class="box" x="20" y="30" width="150" height="54" rx="7"></rect>
+    <text class="t-mono" x="34" y="52">checkout CI</text>
+    <text class="sub" x="34" y="70">push main-&lt;run&gt;-&lt;sha&gt;</text>
+    <line class="edge" x1="170" y1="57" x2="200" y2="57" marker-end="url(#arr3)"></line>
+    <rect class="box" x="202" y="30" width="120" height="54" rx="7"></rect>
+    <text class="t-mono" x="216" y="60">ghcr.io</text>
+
+    <!-- staging auto lane -->
+    <text class="gl" x="360" y="20" style="fill: var(--flow)">staging — tự động</text>
+    <rect class="box-accent" x="360" y="30" width="230" height="54" rx="7"></rect>
+    <text class="t" x="376" y="52">ImagePolicy staging</text>
+    <text class="sub" x="376" y="70">chọn main-&lt;run&gt; mới nhất (numeric)</text>
+    <line class="edge-acc" x1="590" y1="57" x2="620" y2="57" marker-end="url(#arr3)"></line>
+    <rect class="box-accent" x="622" y="30" width="230" height="54" rx="7"></rect>
+    <text class="t" x="638" y="52">ImageUpdateAutomation</text>
+    <text class="sub" x="638" y="70">sửa marker → commit main</text>
+    <line class="edge-flow" x1="852" y1="57" x2="882" y2="57" marker-end="url(#arr3)"></line>
+    <rect class="box-flow" x="884" y="30" width="150" height="54" rx="7"></rect>
+    <text class="t-mono" x="900" y="52">checkout-staging</text>
+    <text class="sub" x="900" y="70">Flux deploy</text>
+
+    <!-- github app auth note -->
+    <rect class="box-tint" x="622" y="104" width="230" height="40" rx="6"></rect>
+    <text class="t-mono" x="638" y="122">GitHub App (git write)</text>
+    <text class="sub" x="638" y="137">App 4244512 · Contents RW · gitops</text>
+    <line class="edge-faint" x1="737" y1="104" x2="737" y2="86" marker-end="url(#arr3)"></line>
+
+    <!-- promote lane -->
+    <text class="gl" x="20" y="188" style="fill: var(--accent)">prod — promote đa vùng (qua PR review)</text>
+    <rect class="box" x="20" y="200" width="180" height="54" rx="7"></rect>
+    <text class="t" x="36" y="222">Backstage Promote</text>
+    <text class="sub" x="36" y="240">chọn tag + region</text>
+    <line class="edge-acc" x1="200" y1="227" x2="230" y2="227" marker-end="url(#arr3)"></line>
+    <rect class="box" x="232" y="200" width="200" height="54" rx="7"></rect>
+    <text class="t-mono" x="248" y="222">promote-region.yml</text>
+    <text class="sub" x="248" y="240">retag us-… / eu-… (ghcr)</text>
+    <line class="edge-acc" x1="432" y1="227" x2="462" y2="227" marker-end="url(#arr3)"></line>
+    <rect class="box-accent" x="464" y="200" width="210" height="54" rx="7"></rect>
+    <text class="t" x="480" y="222">ImagePolicy prod-eu</text>
+    <text class="sub" x="480" y="240">bắt tag eu-… mới</text>
+    <line class="edge-acc" x1="674" y1="227" x2="704" y2="227" marker-end="url(#arr3)"></line>
+    <rect class="box-accent" x="706" y="200" width="220" height="54" rx="7"></rect>
+    <text class="t" x="722" y="222">Automation → branch</text>
+    <text class="sub" x="722" y="240">flux-image-prod-eu → PR</text>
+    <line class="edge" x1="926" y1="227" x2="956" y2="227" marker-end="url(#arr3)"></line>
+    <rect class="box-flow" x="958" y="200" width="170" height="54" rx="7"></rect>
+    <text class="t-mono" x="974" y="222">checkout-prod-eu</text>
+    <text class="sub" x="974" y="240">merge PR → Flux deploy</text>
+  </svg>
+  </div>
+
+  <div class="cols" style="margin-top: 20px">
+    <div class="panel pro">
+      <h3>Điểm cốt lõi</h3>
+      <ul>
+        <li><strong>Không PAT trong service repo:</strong> git-write chỉ nằm ở 1 GitHub App trong cluster, scope đúng repo <code>gitops</code>.</li>
+        <li><strong>staging tự động</strong>, commit thẳng <code>main</code>; <strong>prod-* qua PR</strong> (push branch <code>flux-image-*</code> → GH Action mở PR → review).</li>
+        <li><strong>Promote = retag</strong>, không rebuild: <code>main-&lt;run&gt;</code> → <code>us-&lt;run&gt;</code> → <code>eu-&lt;run&gt;</code>, ImagePolicy mỗi vùng bắt prefix của mình.</li>
+      </ul>
+    </div>
+    <div class="panel con">
+      <h3>Cần biết khi vận hành</h3>
+      <ul>
+        <li><strong>Tag phải sort được:</strong> CI phát <code>main-&lt;run_number&gt;-&lt;sha&gt;</code> để ImagePolicy numerical chọn "mới nhất".</li>
+        <li><strong>Thêm 2 controller</strong> image-reflector + image-automation vào FluxInstance.</li>
+        <li><strong>Độ trễ ~1–2 phút</strong> theo scan interval.</li>
+        <li><strong>PR review:</strong> staging bypass được vì CODEOWNERS không own <code>apps/staging</code>; prod-* buộc review.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">04</span>Môi trường</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Env</th><th>Cluster</th><th>Namespace</th><th>ENV</th><th>LOG_LEVEL</th><th class="num-col">Replicas</th><th>Cách cập nhật</th></tr></thead>
+    <tbody>
+      <tr><td><strong>staging</strong></td><td><code>kind-dev</code></td><td><code>checkout-staging</code></td><td>staging</td><td>debug</td><td class="num-col">1</td><td>Image Automation tự bump (commit main)</td></tr>
+      <tr><td><strong>beta</strong></td><td><code>kind-prod</code></td><td><code>checkout-beta</code></td><td>staging</td><td>info</td><td class="num-col">2</td><td>Enable Environment PR + review</td></tr>
+      <tr><td><strong>prod-us</strong></td><td><code>kind-prod</code></td><td><code>checkout-prod-us</code></td><td>production</td><td>warn</td><td class="num-col">2</td><td>Promote Image (us) → PR review</td></tr>
+      <tr><td><strong>prod-eu</strong></td><td><code>kind-prod</code></td><td><code>checkout-prod-eu</code></td><td>production</td><td>warn</td><td class="num-col">2</td><td>Promote Image (eu) → PR review</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="caption" style="margin-top:10px">Mỗi env sở hữu <code>apps/&lt;env&gt;/checkout/values-&lt;env&gt;.yaml</code> (merge trên <code>values-base.yaml</code>) — image tag, replicas và trọn bộ env-var contract (SERVICE_NAME, ENV, LOG_*, OTEL_*, SHUTDOWN_*…). Diff của PR chính là toàn bộ thay đổi.</p>
+</section>
+
+<section>
+  <h2><span class="num">05</span>Repo</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Repo</th><th>Vai trò</th><th>Ai ghi</th></tr></thead>
+    <tbody>
+      <tr><td><code>gitops</code></td><td>Source of truth cho dev/prod — HelmRelease, overlays, catalog entities</td><td>Chỉ PR (CODEOWNERS DevOps) + lane dev-auto</td></tr>
+      <tr><td><code>checkout-service</code></td><td>Go service chuẩn org: env-driven config, graceful shutdown, RED metrics</td><td>Dev (code PR)</td></tr>
+      <tr><td><code>backstage</code></td><td>Portal + scaffolder templates + helmfile dựng cả stack trên Kind</td><td>Platform team</td></tr>
+      <tr><td><code>helm-charts</code></td><td>Chart <code>mop</code> dùng chung (OCI) — cùng chart với 9 service homelab</td><td>Platform team</td></tr>
+      <tr><td><code>gha-workflows</code></td><td>Reusable CI: go-check, docker-build-go, trivy, cosign</td><td>Platform team</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">06</span>Trạng thái</h2>
+  <ul class="status">
+    <li><span class="pill pill-ok">Đã dựng</span><span>4 template (onboard / update-env-var surgical / enable-environment / promote-image), layout <code>values-base + values-&lt;env&gt;</code>, ExternalSecret (ESO fake), Flux Image Automation + marker <code>$imagepolicy</code>. Validate offline: <code>kustomize build</code> 4 env, <code>helmfile template</code>, JSONata patch test.</span></li>
+    <li><span class="pill pill-ok">Đã dựng</span><span>Hạ tầng: FluxInstance thêm image-reflector + image-automation; ESO cài qua helmfile; CODEOWNERS scope path (staging tự do, beta/prod-* review); workflow mở PR từ branch <code>flux-image-*</code>.</span></li>
+    <li><span class="pill pill-wait">Chưa commit</span><span>Toàn bộ nằm ở working tree 3 repo (gitops + backstage + checkout-service) — chờ bạn review rồi commit.</span></li>
+    <li><span class="pill pill-wait">Chờ bạn</span><span>GitHub App (App ID + Installation ID + đường dẫn .pem) để Flux Image Automation push git; chạy <code>./deploy/setup.sh</code> dựng 3 Kind cluster khi sẵn sàng.</span></li>
+    <li><span class="pill pill-wait">Chờ bạn</span><span>OAuth App cho tab CI/CD (tùy chọn).</span></li>
+  </ul>
+</section>
+
+<section>
+  <h2><span class="num">07</span>Backstage trong industry</h2>
+  <p class="caption">
+    <strong>113 công ty</strong> tự đăng ký trong <code>ADOPTERS.md</code> chính thức của dự án (opt-in — con số thật lớn hơn).
+    Backstage do Spotify tạo, hiện là dự án <strong>CNCF Incubating</strong>; VMware (Tanzu) và Red Hat (Developer Hub) đóng gói bán thương mại.
+  </p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Nhóm</th><th>Công ty tiêu biểu</th><th>Cách dùng (trích mô tả chính thức)</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Big Tech / Product</strong></td>
+        <td>Spotify · Epic Games · Unity · HBO&nbsp;Max · IKEA Retail · HP · VMware · Splunk · Box · SoundCloud · Snyk</td>
+        <td>Spotify: "giao diện chính cho toàn bộ hạ tầng + tài liệu kỹ thuật". Epic Games: catalog + docs + software templates — cùng pattern stack này.</td>
+      </tr>
+      <tr>
+        <td><strong>Fintech / Bank</strong></td>
+        <td>Monzo · Brex · Lunar · Bradesco · Raiffeisen · SIX · Mox Bank · Wealthsimple · PicPay</td>
+        <td>Monzo: metadata + docs cho <strong>2.000+ microservices</strong>, tự viết plugin đo "software excellence" và xem deploy. Lunar: portal cho team <strong>40 engineers</strong> — nhỏ vẫn đáng làm.</td>
+      </tr>
+      <tr>
+        <td><strong>E-commerce / Consumer</strong></td>
+        <td>Expedia · Wayfair · Zalando · HelloFresh · Grab · Just&nbsp;Eat · Trendyol · leboncoin · SEEK · M&amp;S</td>
+        <td>HelloFresh: portal cho <strong>500+ engineers</strong> toàn cầu. Grab: "unified interface cho toàn bộ tooling nội bộ".</td>
+      </tr>
+      <tr>
+        <td><strong>Enterprise truyền thống</strong></td>
+        <td>American Airlines · Telstra · TUI Group · McKesson · Peloton · Booz Allen Hamilton</td>
+        <td>American Airlines (có case study 2 phần): "nơi tập trung để dev phát triển và duy trì ứng dụng".</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="panel" style="margin-top: 20px">
+    <h3 style="color: var(--accent)">Đọc theo thứ tự này (link đã kiểm chứng từ backstage/community)</h3>
+    <div class="cols">
+      <div>
+        <p class="caption" style="margin:0 0 8px"><strong>1 · Hiểu Backstage là gì</strong></p>
+        <ul>
+          <li><a href="https://engineering.atspotify.com/2020/03/17/what-the-heck-is-backstage-anyway/">Spotify — What the Heck is Backstage Anyway</a></li>
+          <li><a href="https://engineering.atspotify.com/2020/04/21/how-we-use-backstage-at-spotify/">Spotify — How we use Backstage at Spotify</a></li>
+          <li><a href="https://stackoverflow.blog/2022/09/19/i-spent-two-years-trying-to-do-what-backstage-does-for-free/">Stack Overflow — "I spent two years trying to do what Backstage does for free"</a> (vì sao không tự build)</li>
+        </ul>
+        <p class="caption" style="margin:14px 0 8px"><strong>2 · Case study có số liệu, cỡ vừa</strong></p>
+        <ul>
+          <li><a href="https://roadie.io/case-studies/lunar-backstage-adoption/">Lunar Bank — adopt với 40 engineers</a></li>
+          <li><a href="https://roadie.io/case-studies/expedia-group-backstage-mvp/">Expedia — define vision, success metrics, dựng MVP</a></li>
+          <li><a href="https://monzo.com/blog/2021/09/15/how-we-measure-software-excellence">Monzo — đo "software excellence" (2.000+ services)</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="caption" style="margin:0 0 8px"><strong>3 · Chuyện adoption từng công ty</strong></p>
+        <ul>
+          <li><a href="https://engineering.zalando.com/posts/2023/08/sunrise-zalandos-developer-platform-based-on-backstage.html">Zalando — Sunrise: lessons learned</a> (bài học sát nhất cho người mới)</li>
+          <li><a href="https://tech.aa.com/2021-12-21-runway-pt1/">American Airlines — Runway</a> · video <a href="https://www.youtube.com/watch?v=kZFdHmM5-7M">P1</a>/<a href="https://www.youtube.com/watch?v=I2uEhK0T8MY">P2</a></li>
+          <li><a href="https://medium.com/brexeng/backstage-adoption-at-brex-b415e0e7d3a6">Brex — Backstage Adoption at Brex</a></li>
+          <li><a href="https://medium.com/dazn-tech/integrating-backstage-at-dazn-b8ef5268b347">DAZN — Integrating Backstage at DAZN</a></li>
+          <li><a href="https://medium.com/quintoandar-tech-blog/how-we-are-improving-developer-experience-at-quintoandar-with-backstage-io-fa1ab70b75cb">QuintoAndar — cải thiện DevEx với Backstage</a></li>
+          <li><a href="https://medium.com/sda-se/building-a-developer-portal-with-backstage-part-1-c4602ee59260">SDA SE — Building a Developer Portal, P1</a>/<a href="https://medium.com/sda-se/building-a-developer-portal-with-backstage-part-2-99537068f4ed">P2</a> (step-by-step)</li>
+          <li><a href="https://www.infoq.com/news/2021/03/spotify-paved-paths/">InfoQ — Spotify paved paths &amp; common tooling</a></li>
+        </ul>
+        <p class="caption" style="margin:14px 0 4px">Danh mục đầy đủ: <a href="https://github.com/backstage/community">github.com/backstage/community</a></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols" style="margin-top: 20px">
+    <div class="panel pro">
+      <h3>Pattern chung của mọi adopter</h3>
+      <ul>
+        <li><strong>Bắt đầu từ Software Catalog</strong> — ai sở hữu gì, chạy ở đâu; giá trị thấy ngay từ ngày đầu.</li>
+        <li><strong>Golden path templates</strong> — onboard service chuẩn hóa, dev không cần xin DevOps.</li>
+        <li><strong>TechDocs</strong> — tài liệu sống cạnh code, render trong portal.</li>
+        <li><strong>Plugin nội bộ là bước sau</strong> — Monzo viết plugin riêng khi catalog đã chín, không phải ngày đầu.</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <h3 style="color: var(--accent)">Map sang stack duynhlab</h3>
+      <ul>
+        <li>Catalog auto-discover từ <code>gitops</code> ✔ — như Epic/Unity.</li>
+        <li>Templates onboard/update-promote qua PR ✔ — chính là "golden path".</li>
+        <li>Flux tab + Kubernetes tab + CI/CD tab ✔ — hướng Monzo đã đi (deploy visibility trong portal).</li>
+        <li>Bước sau khi cần: TechDocs cho từng service, plugin đo chất lượng, scorecard.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<footer>duynhlab platform · 4-template model · cập nhật 2026-07-14</footer>
+</main>
+</body>
+</html>

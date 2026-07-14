@@ -1,0 +1,28 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ${{ values.serviceName }}
+  namespace: ${{ values.serviceName }}-staging
+  labels:
+    backstage.io/kubernetes-id: ${{ values.serviceName }}
+spec:
+  interval: 5m
+  timeout: 5m
+  releaseName: ${{ values.serviceName }}
+  chartRef:
+    kind: OCIRepository
+    name: mop-chart-oci
+    namespace: flux-system
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  valuesFrom:
+    - kind: ConfigMap
+      name: ${{ values.serviceName }}-values-base
+      valuesKey: values-base.yaml
+    - kind: ConfigMap
+      name: ${{ values.serviceName }}-values-staging
+      valuesKey: values-staging.yaml

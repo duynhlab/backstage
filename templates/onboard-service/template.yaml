@@ -4,9 +4,12 @@ metadata:
   name: onboard-service
   title: Onboard New Service
   description: |
-    Self-service onboarding: adds a service to the gitops repo across all
-    three environments (dev / uat / prod) via one pull request. DevOps/SRE
-    review and merge — Flux deploys it and the service appears in the catalog.
+    Bring a service onto the platform in the staging environment via one pull
+    request to the gitops repo: base + staging Helm values, HelmRelease,
+    per-service SecretStore + ExternalSecret, staging image automation, a
+    service-registry entry and the Backstage catalog entity. staging-only PRs
+    merge without a required review; promote to higher environments later with
+    "Enable Environment".
   tags:
     - gitops
     - flux
@@ -25,7 +28,7 @@ spec:
           type: string
           pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'
           maxLength: 30
-          description: Lowercase DNS-safe name (e.g. "payment"). Namespaces become <name>-dev/uat/prod.
+          description: Lowercase DNS-safe name (e.g. "payment"). Staging namespace is <name>-staging.
           ui:autofocus: true
         description:
           title: Description
@@ -35,7 +38,6 @@ spec:
         owner:
           title: Owner
           type: string
-          description: Team that owns this service
           pattern: '^([a-zA-Z0-9-]+:)?([a-zA-Z0-9-]+/)?[a-zA-Z0-9-]{1,63}$'
           default: platform-team
           ui:field: OwnerPicker
@@ -60,31 +62,16 @@ spec:
           type: string
           description: Immutable tag from CI (e.g. sha-abc1234 or 1.2.3)
           pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$'
-
-    - title: Replicas per environment
-      properties:
-        replicasDev:
-          title: dev replicas
+        replicas:
+          title: Staging replicas
           type: integer
           default: 1
           minimum: 1
           maximum: 5
-        replicasUat:
-          title: uat replicas
-          type: integer
-          default: 2
-          minimum: 1
-          maximum: 5
-        replicasProd:
-          title: prod replicas
-          type: integer
-          default: 2
-          minimum: 1
-          maximum: 10
 
   steps:
     - id: fetch
-      name: Render GitOps manifests (base + dev/uat/prod + catalog)
+      name: Render staging GitOps manifests
       action: fetch:template
       input:
         url: ./skeleton
@@ -95,9 +82,7 @@ spec:
           owner: ${{ parameters.owner }}
           imageRepository: ${{ parameters.imageRepository or ('ghcr.io/duynhlab/' + parameters.serviceName + '-service/' + parameters.serviceName + '-service') }}
           imageTag: ${{ parameters.imageTag }}
-          replicasDev: ${{ parameters.replicasDev }}
-          replicasUat: ${{ parameters.replicasUat }}
-          replicasProd: ${{ parameters.replicasProd }}
+          replicas: ${{ parameters.replicas }}
 
     - id: pr
       name: Open pull request to gitops
@@ -105,31 +90,36 @@ spec:
       input:
         repoUrl: github.com?owner=duynhlab&repo=gitops
         branchName: onboard-${{ parameters.serviceName }}
-        title: 'Onboard service ${{ parameters.serviceName }}'
+        title: 'Onboard service ${{ parameters.serviceName }} (staging)'
         update: true
         description: |
-          ## Onboard `${{ parameters.serviceName }}`
+          ## Onboard `${{ parameters.serviceName }}` to staging
 
           Created from the Backstage **Onboard New Service** template.
 
           | Setting | Value |
           |---------|-------|
           | Image | `${{ parameters.imageRepository or ('ghcr.io/duynhlab/' + parameters.serviceName + '-service/' + parameters.serviceName + '-service') }}:${{ parameters.imageTag }}` |
-          | Replicas | dev=${{ parameters.replicasDev }}, uat=${{ parameters.replicasUat }}, prod=${{ parameters.replicasProd }} |
+          | Staging replicas | `${{ parameters.replicas }}` |
           | Owner | `${{ parameters.owner }}` |
 
-          Adds `apps/base/${{ parameters.serviceName }}`, the three environment
-          overlays and `catalog/${{ parameters.serviceName }}.yaml`. After merge,
-          Flux deploys all three environments and the service appears in the
-          Backstage catalog automatically.
+          Adds `apps/base/${{ parameters.serviceName }}/values-base.yaml`, the
+          `apps/staging/${{ parameters.serviceName }}/` overlay (HelmRelease,
+          SecretStore, ExternalSecret, values), the staging image automation in
+          `clusters/staging/`, `service-registry/${{ parameters.serviceName }}.yaml`
+          and `catalog/${{ parameters.serviceName }}.yaml`.
+
+          Staging-only — merges without a required review. Promote to beta /
+          prod-us / prod-eu later with **Enable Environment**.
 
   output:
     links:
-      - title: Pull Request (needs DevOps/SRE approval)
+      - title: Pull Request
         url: ${{ steps['pr'].output.remoteUrl }}
     text:
       - title: Next steps
         content: |
-          1. DevOps/SRE review and merge the PR
-          2. Flux deploys into `${{ parameters.serviceName }}-dev/uat/prod`
+          1. Merge the PR (staging is unowned — no required review)
+          2. Flux on kind-dev deploys into `${{ parameters.serviceName }}-staging`
           3. The service appears in the Backstage catalog within a few minutes
+          4. Promote to production regions with the **Enable Environment** template
