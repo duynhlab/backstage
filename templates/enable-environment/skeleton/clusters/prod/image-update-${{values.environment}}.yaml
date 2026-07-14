@@ -3,7 +3,7 @@
 # rewritten tag to a `flux-image-${{ values.environment }}` branch; a GitHub
 # Action opens a PR (.github/workflows/image-automation-pr.yml) so the change
 # is reviewed before it reaches main.
-apiVersion: image.toolkit.fluxcd.io/v1beta1
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageUpdateAutomation
 metadata:
   name: ${{ values.environment }}

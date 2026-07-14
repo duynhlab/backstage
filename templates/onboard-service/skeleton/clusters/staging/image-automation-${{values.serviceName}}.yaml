@@ -2,7 +2,7 @@
 # Rewrites the marked image.tag in apps/staging/${{ values.serviceName }}/values-staging.yaml
 # and commits to main (staging is the auto-deploy lane). Tracks the latest
 # semver release image (X.Y.Z, built by CI on v* tag pushes).
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
   name: ${{ values.serviceName }}-staging
@@ -11,7 +11,7 @@ spec:
   image: ${{ values.imageRepository }}
   interval: 5m
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImagePolicy
 metadata:
   name: ${{ values.serviceName }}-staging

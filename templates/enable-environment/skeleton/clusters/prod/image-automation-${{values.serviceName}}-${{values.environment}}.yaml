@@ -2,7 +2,7 @@
 # The policy matches the semver tag this environment tracks (beta → plain
 # X.Y.Z, prod-us → us-X.Y.Z, prod-eu → eu-X.Y.Z); the env-wide
 # ImageUpdateAutomation rewrites the marked tag and opens a reviewed PR.
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImageRepository
 metadata:
   name: ${{ values.serviceName }}-${{ values.environment }}
@@ -11,7 +11,7 @@ spec:
   image: ghcr.io/duynhlab/${{ values.serviceName }}-service/${{ values.serviceName }}-service
   interval: 5m
 ---
-apiVersion: image.toolkit.fluxcd.io/v1beta2
+apiVersion: image.toolkit.fluxcd.io/v1
 kind: ImagePolicy
 metadata:
   name: ${{ values.serviceName }}-${{ values.environment }}

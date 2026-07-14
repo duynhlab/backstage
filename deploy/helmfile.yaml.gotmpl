@@ -26,6 +26,11 @@ templates:
     namespace: flux-system
     chart: oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance
     version: 0.54.0
+    # The FluxInstance CR reconciles asynchronously (the operator installs the
+    # controllers); helm's own wait would time out on first install. Don't wait
+    # at the helm level — a postsync hook (per release, below) blocks on the CR's
+    # Ready condition instead.
+    wait: false
     labels:
       tier: env
   external-secrets: &external-secrets
@@ -63,6 +68,11 @@ releases:
     <<: *flux-instance
     needs:
       - kind-dev/flux-system/flux-operator
+    hooks:
+      - events: ["postsync"]
+        showlogs: true
+        command: kubectl
+        args: ["--context", "kind-dev", "-n", "flux-system", "wait", "--for=condition=Ready", "fluxinstance/flux", "--timeout=300s"]
     values:
       - instance:
           {{ $fluxValues | toYaml | nindent 10 }}
@@ -73,6 +83,8 @@ releases:
             path: clusters/staging
             interval: 1m
             {{- if $syncSecret }}
+            # GitHub App auth requires the provider to be set explicitly.
+            provider: github
             pullSecret: flux-system
             {{- end }}
 
@@ -94,6 +106,11 @@ releases:
     <<: *flux-instance
     needs:
       - kind-prod/flux-system/flux-operator
+    hooks:
+      - events: ["postsync"]
+        showlogs: true
+        command: kubectl
+        args: ["--context", "kind-prod", "-n", "flux-system", "wait", "--for=condition=Ready", "fluxinstance/flux", "--timeout=300s"]
     values:
       - instance:
           {{ $fluxValues | toYaml | nindent 10 }}
@@ -104,6 +121,8 @@ releases:
             path: clusters/prod
             interval: 1m
             {{- if $syncSecret }}
+            # GitHub App auth requires the provider to be set explicitly.
+            provider: github
             pullSecret: flux-system
             {{- end }}
 

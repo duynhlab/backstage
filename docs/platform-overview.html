@@ -436,12 +436,20 @@
 <section>
   <h2><span class="num">06</span>Trạng thái</h2>
   <ul class="status">
-    <li><span class="pill pill-ok">Đã dựng</span><span>4 template (onboard / update-env-var surgical / enable-environment / promote-image), layout <code>values-base + values-&lt;env&gt;</code>, ExternalSecret (ESO fake), Flux Image Automation + marker <code>$imagepolicy</code>. Validate offline: <code>kustomize build</code> 4 env, <code>helmfile template</code>, JSONata patch test.</span></li>
-    <li><span class="pill pill-ok">Đã dựng</span><span>Hạ tầng: FluxInstance thêm image-reflector + image-automation; ESO cài qua helmfile; CODEOWNERS scope path (staging tự do, beta/prod-* review); workflow mở PR từ branch <code>flux-image-*</code>.</span></li>
-    <li><span class="pill pill-wait">Chưa commit</span><span>Toàn bộ nằm ở working tree 3 repo (gitops + backstage + checkout-service) — chờ bạn review rồi commit.</span></li>
-    <li><span class="pill pill-wait">Chờ bạn</span><span>GitHub App (App ID + Installation ID + đường dẫn .pem) để Flux Image Automation push git; chạy <code>./deploy/setup.sh</code> dựng 3 Kind cluster khi sẵn sàng.</span></li>
-    <li><span class="pill pill-wait">Chờ bạn</span><span>OAuth App cho tab CI/CD (tùy chọn).</span></li>
+    <li><span class="pill pill-ok">E2E chạy</span><span>Đã dựng thật 3 Kind cluster + toàn stack; Backstage lên <code>:7007</code> (health 200), catalog thấy <code>checkout</code>, đủ 4 template. Flux + ESO + agent Ready trên dev &amp; prod; GitHub App auth git OK; staging đã pull image <code>0.2.0</code>.</span></li>
+    <li><span class="pill pill-ok">Đã push</span><span>Cả 3 repo đã commit/push, gồm các fix tìm ra lúc E2E: <code>provider: github</code> cho GitHub App auth, image CRD API <code>v1</code> (không phải v1beta), helmfile <code>wait:false</code>+hook chờ FluxInstance Ready, secret githubapp idempotent.</span></li>
+    <li><span class="pill pill-wait">Cần làm</span><span><strong>checkout crashloop</strong>: image <code>0.2.0</code> là service thật (cần PostgreSQL/Temporal). Cho demo platform: đổi sang image stateless, hoặc cấp DB thật cho staging.</span></li>
+    <li><span class="pill pill-wait">Cần làm</span><span><strong>Tab CI/CD</strong>: thêm Callback URL + client secret cho GitHub App rồi redeploy với <code>AUTH_GITHUB_CLIENT_ID/SECRET</code> (xem deploy/README).</span></li>
   </ul>
+
+  <div class="panel" style="margin-top: 20px">
+    <h3 style="color: var(--accent)">Tiếp tục ngày mai (state đã giữ nguyên)</h3>
+    <ul>
+      <li>Bật lại 3 cluster: <code>docker start mgmt-control-plane dev-control-plane prod-control-plane</code> (chờ ~1-2 phút).</li>
+      <li>Mở <code>http://localhost:7007</code>. Nếu IP cluster đổi sau restart, chạy lại token+mgmt tier (mục 4-5 <code>deploy/setup.sh</code>) để Backstage nối lại dev/prod.</li>
+      <li>Dựng lại từ đầu bất cứ lúc nào: <code>./deploy/setup.sh</code> (đã có block export GitHub App trong <code>deploy/README.md</code>).</li>
+    </ul>
+  </div>
 </section>
 
 <section>
@@ -532,7 +540,7 @@
   </div>
 </section>
 
-<footer>duynhlab platform · 4-template model · cập nhật 2026-07-14</footer>
+<footer>duynhlab platform · 4-template model · E2E verified · cập nhật 2026-07-14</footer>
 </main>
 </body>
 </html>

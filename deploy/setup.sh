@@ -43,11 +43,14 @@ if [ -n "${GITOPS_APP_ID:-}" ]; then
   for e in dev prod; do
     kubectl --context "kind-${e}" create namespace flux-system \
       --dry-run=client -o yaml | kubectl --context "kind-${e}" apply -f -
+    # --export | apply so re-running setup.sh replaces the secret instead of
+    # erroring on an existing one.
     flux --context "kind-${e}" create secret githubapp flux-system \
       --namespace flux-system \
       --app-id="${GITOPS_APP_ID}" \
       --app-installation-id="${GITOPS_APP_INSTALLATION_ID}" \
-      --app-private-key="${GITOPS_APP_PEM_PATH}"
+      --app-private-key="${GITOPS_APP_PEM_PATH}" \
+      --export | kubectl --context "kind-${e}" apply -f -
   done
 else
   echo "[3/5] GITOPS_APP_ID not set — Flux image automation will read-only "
