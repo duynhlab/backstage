@@ -331,7 +331,7 @@
     <!-- build -->
     <rect class="box" x="20" y="30" width="150" height="54" rx="7"></rect>
     <text class="t-mono" x="34" y="52">checkout CI</text>
-    <text class="sub" x="34" y="70">push main-&lt;run&gt;-&lt;sha&gt;</text>
+    <text class="sub" x="34" y="70">push X.Y.Z (v* tag)</text>
     <line class="edge" x1="170" y1="57" x2="200" y2="57" marker-end="url(#arr3)"></line>
     <rect class="box" x="202" y="30" width="120" height="54" rx="7"></rect>
     <text class="t-mono" x="216" y="60">ghcr.io</text>
@@ -340,7 +340,7 @@
     <text class="gl" x="360" y="20" style="fill: var(--flow)">staging — tự động</text>
     <rect class="box-accent" x="360" y="30" width="230" height="54" rx="7"></rect>
     <text class="t" x="376" y="52">ImagePolicy staging</text>
-    <text class="sub" x="376" y="70">chọn main-&lt;run&gt; mới nhất (numeric)</text>
+    <text class="sub" x="376" y="70">chọn semver mới nhất</text>
     <line class="edge-acc" x1="590" y1="57" x2="620" y2="57" marker-end="url(#arr3)"></line>
     <rect class="box-accent" x="622" y="30" width="230" height="54" rx="7"></rect>
     <text class="t" x="638" y="52">ImageUpdateAutomation</text>
@@ -386,13 +386,13 @@
       <ul>
         <li><strong>Không PAT trong service repo:</strong> git-write chỉ nằm ở 1 GitHub App trong cluster, scope đúng repo <code>gitops</code>.</li>
         <li><strong>staging tự động</strong>, commit thẳng <code>main</code>; <strong>prod-* qua PR</strong> (push branch <code>flux-image-*</code> → GH Action mở PR → review).</li>
-        <li><strong>Promote = retag</strong>, không rebuild: <code>main-&lt;run&gt;</code> → <code>us-&lt;run&gt;</code> → <code>eu-&lt;run&gt;</code>, ImagePolicy mỗi vùng bắt prefix của mình.</li>
+        <li><strong>Promote = retag</strong>, không rebuild: <code>0.2.0</code> → <code>us-0.2.0</code> → <code>eu-0.2.0</code>, ImagePolicy mỗi vùng bắt prefix của mình.</li>
       </ul>
     </div>
     <div class="panel con">
       <h3>Cần biết khi vận hành</h3>
       <ul>
-        <li><strong>Tag phải sort được:</strong> CI phát <code>main-&lt;run_number&gt;-&lt;sha&gt;</code> để ImagePolicy numerical chọn "mới nhất".</li>
+        <li><strong>Release theo git tag:</strong> push <code>vX.Y.Z</code> → CI build image <code>X.Y.Z</code>; ImagePolicy semver chọn bản cao nhất.</li>
         <li><strong>Thêm 2 controller</strong> image-reflector + image-automation vào FluxInstance.</li>
         <li><strong>Độ trễ ~1–2 phút</strong> theo scan interval.</li>
         <li><strong>PR review:</strong> staging bypass được vì CODEOWNERS không own <code>apps/staging</code>; prod-* buộc review.</li>

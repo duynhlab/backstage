@@ -37,8 +37,8 @@ spec:
         sourceTag:
           title: Source image tag
           type: string
-          description: An existing tag to promote (e.g. main-42-<sha> for →us, or us-42-<sha> for →eu)
-          pattern: '^(main|us|beta)-[0-9]+-[a-f0-9]+$'
+          description: Existing semver tag to promote (e.g. 0.2.0 for →us, or us-0.2.0 for →eu)
+          pattern: '^(us-)?[0-9]+\.[0-9]+\.[0-9]+$'
         toRegion:
           title: Target region
           type: string

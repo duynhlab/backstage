@@ -5,7 +5,7 @@ only and is promoted outward on demand.
 
 | Env | Cluster | Namespace | ENV (app) | LOG_LEVEL | How it updates |
 |-----|---------|-----------|-----------|-----------|----------------|
-| staging | `kind-dev` | `<svc>-staging` | staging | debug | CI builds `main-<n>-<sha>` → Flux image automation commits to `main` (auto) |
+| staging | `kind-dev` | `<svc>-staging` | staging | debug | CI builds `X.Y.Z` (on `v*` tags) → Flux image automation commits to `main` (auto) |
 | beta | `kind-prod` | `<svc>-beta` | staging | info | Enable Environment PR; image automation → reviewed PR |
 | prod-us | `kind-prod` | `<svc>-prod-us` | production | warn | Promote Image (us) → image automation → reviewed PR |
 | prod-eu | `kind-prod` | `<svc>-prod-eu` | production | warn | Promote Image (eu) → image automation → reviewed PR |
@@ -62,15 +62,15 @@ source of truth for that environment.
 
 ```mermaid
 flowchart LR
-    CI["CI on main"] -->|"main-<n>-<sha>"| Stg["staging (auto)"]
+    CI["CI on v* tag"] -->|"X.Y.Z"| Stg["staging (auto)"]
     Stg -->|"Enable Environment / verified"| Beta["beta"]
-    Beta -->|"Promote Image us"| US["prod-us (us-<n>-<sha>)"]
-    US -->|"Promote Image eu"| EU["prod-eu (eu-<n>-<sha>)"]
+    Beta -->|"Promote Image us"| US["prod-us (us-X.Y.Z)"]
+    US -->|"Promote Image eu"| EU["prod-eu (eu-X.Y.Z)"]
 ```
 
-Region prefixes (`main-`/`us-`/`eu-`) let each environment's ImagePolicy track
-exactly the tags meant for it; promotion re-tags an existing image (same
-`<n>-<sha>`), never rebuilds.
+Plain semver (`X.Y.Z`) feeds staging/beta; region prefixes (`us-`/`eu-`) let
+the prod ImagePolicies track exactly the tags meant for them. Promotion re-tags
+an existing image (same `X.Y.Z`), never rebuilds.
 
 ## Rollback
 

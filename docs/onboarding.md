@@ -29,8 +29,8 @@ catalog/<svc>.yaml
 ```
 
 Staging is unowned → merges without a required review. After merge, Flux on
-`kind-dev` deploys `<svc>-staging`, and CI's `main-<n>-<sha>` builds
-auto-update it thereafter.
+`kind-dev` deploys `<svc>-staging`, and CI's semver release images
+(`X.Y.Z` on `v*` tags) auto-update it thereafter.
 
 ### 2. Update Env Var (surgical)
 
@@ -55,7 +55,7 @@ Flux then opens a `flux-image-prod-<region>` PR for review.
 Follow [checkout-service](https://github.com/duynhlab/checkout-service): CI via
 `gha-workflows`, image at `ghcr.io/duynhlab/<name>-service/<name>-service`,
 `/health` `/ready` `/metrics` on :8080, env-driven config, and a
-`main-<run>-<sha>` tag on main builds (so staging image automation can sort).
+semver release tag `vX.Y.Z` (so staging image automation tracks the latest release).
 
 ## For DevOps/SRE: reviewing
 
@@ -80,5 +80,5 @@ gh pr merge <n> -R duynhlab/gitops --squash --delete-branch
 | PR not created | Backstage task log — usually an expired `GITHUB_TOKEN` |
 | Merged, not deployed | `kubectl --context kind-<dev\|prod> -n flux-system get kustomization`; `describe helmrelease <svc>` in the env namespace |
 | Pod stuck (secret) | `kubectl -n <svc>-<env> get externalsecret` — the fake store must hold the requested key |
-| staging not auto-updating | image automation needs a `main-<n>-<sha>` tag + the Flux GitHub App secret |
+| staging not auto-updating | image automation needs a semver `X.Y.Z` image + the Flux GitHub App secret |
 | Not in catalog | wait ~5 min (provider refresh); confirm `catalog/<svc>.yaml` on `main` |

@@ -1,7 +1,7 @@
 # Flux image automation for ${{ values.serviceName }} on staging.
 # Rewrites the marked image.tag in apps/staging/${{ values.serviceName }}/values-staging.yaml
-# and commits to main (staging is the auto-deploy lane). Sorts numerically on
-# the monotonic run number in the CI tag form main-<run>-<sha>.
+# and commits to main (staging is the auto-deploy lane). Tracks the latest
+# semver release image (X.Y.Z, built by CI on v* tag pushes).
 apiVersion: image.toolkit.fluxcd.io/v1beta2
 kind: ImageRepository
 metadata:
@@ -20,8 +20,8 @@ spec:
   imageRepositoryRef:
     name: ${{ values.serviceName }}-staging
   filterTags:
-    pattern: '^main-(?P<ts>[0-9]+)-[a-f0-9]+$'
-    extract: '$ts'
+    pattern: '^(?P<version>[0-9]+\.[0-9]+\.[0-9]+)$'
+    extract: '$version'
   policy:
-    numerical:
-      order: asc
+    semver:
+      range: '>=0.1.0'

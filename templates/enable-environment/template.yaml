@@ -47,8 +47,8 @@ spec:
         imageTag:
           title: Initial image tag
           type: string
-          description: A tag that already exists in ghcr (e.g. a staging-verified build)
-          pattern: '^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$'
+          description: An existing semver tag — plain for beta (0.2.0), region-prefixed for prod (us-0.2.0 / eu-0.2.0)
+          pattern: '^(us-|eu-)?[0-9]+\.[0-9]+\.[0-9]+$'
         replicas:
           title: Replicas
           type: integer
@@ -72,9 +72,9 @@ spec:
           appEnv: ${{ 'staging' if parameters.environment == 'beta' else 'production' }}
           logLevel: ${{ 'info' if parameters.environment == 'beta' else 'warn' }}
           sampleRate: ${{ '0.5' if parameters.environment == 'beta' else '0.1' }}
-          # Image-automation tag prefix per region: beta tracks main builds,
-          # prod-us/prod-eu track region-promoted tags (see Promote Image).
-          tagPrefix: ${{ 'main' if parameters.environment == 'beta' else ('us' if parameters.environment == 'prod-us' else 'eu') }}
+          # Image-automation filter per env: beta tracks plain semver releases;
+          # prod-us/prod-eu track region-promoted semver tags (see Promote Image).
+          tagPattern: ${{ '^(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)$' if parameters.environment == 'beta' else ('^us-(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)$' if parameters.environment == 'prod-us' else '^eu-(?P<version>[0-9]+\\.[0-9]+\\.[0-9]+)$') }}
 
     - id: pr
       name: Open pull request to gitops
